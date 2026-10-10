@@ -7,8 +7,10 @@ CloseVault is a private, single-owner real-estate lead manager for capturing con
 ## Current status
 
 This repository contains the **fictional-data demo**, a locally tested database
-foundation, and a local Phase 5A authentication foundation. No hosted
-database deployment or hosted authentication verification is claimed. See
+foundation, and a local Phase 5A authentication foundation. The owner has supplied
+independently verified evidence that the three database migrations are deployed;
+this local workflow does not independently inspect hosted Supabase or verify
+hosted authentication. See
 [Phase 5A authentication](docs/PHASE_5A_AUTHENTICATION.md) for current boundaries,
 verification results and required approvals.
 
@@ -16,6 +18,12 @@ Phase 5B adds a disposable, internal-network Auth/PostgREST HTTP/JWT test harnes
 See [local integration testing](docs/PHASE_5B_AUTH_INTEGRATION.md) for reproduction,
 security boundaries and evidence. It does not connect to hosted Supabase or
 establish production readiness.
+
+Phase 6A aligns local migration filenames with the owner-provided hosted version
+IDs without changing SQL bytes. See [migration alignment](docs/PHASE_6A_MIGRATION_ALIGNMENT.md)
+for checksums, historical mappings and local verification. Hosted CLI migration
+listing and deployment dry-run are deliberately deferred; do not run them as
+part of this local-only workflow.
 
 Authentication mode fails closed when configuration or owner verification is
 unavailable. A verified owner currently sees a placeholder workspace, not demo
@@ -104,18 +112,19 @@ Supabase until remote testing is separately approved. Password recovery remains
 disabled until the owner approves final HTTPS/native redirects and remote Auth
 settings. No signup UI is provided.
 
-The additional local-only migration
-`supabase/migrations/20261010181858_owner_status.sql` exposes an authenticated
+The owner-status migration
+`supabase/migrations/20261010202607_owner_status.sql` exposes an authenticated
 boolean owner-status RPC, not the private owner registry. Its isolated tests are
-`supabase/tests/owner-status.test.sql`. It has not been deployed. Apply only after
-separate review/authorization using the safe isolated procedure documented in
-the Phase 5A report; do not use the older all-interface CLI startup.
+`supabase/tests/owner-status.test.sql`. Its deployment is covered by the
+owner-provided Phase 6A evidence. Do not reapply it. Local verification uses the
+isolated Phase 5B runner; do not use the older all-interface CLI startup.
 
 ## Supabase setup — next milestone
 
-Phase 4A adds local-only draft migrations and SQL tests. They are **not deployed**,
-and the fictional demo still uses in-memory state. Authentication mode never
-uses that provider. See
+Phase 4A originally added local-only draft migrations and SQL tests. Their
+subsequent deployment is covered by owner-provided Phase 6A evidence, not a
+hosted inspection performed here. The fictional demo still uses in-memory state.
+Authentication mode never uses that provider. See
 [Phase 4A foundation](docs/PHASE_4A_DATABASE_FOUNDATION.md) for implemented scope,
 unexecuted database checks and required approvals. Do not run the remote setup
 commands below as part of Phase 4A.
@@ -124,7 +133,11 @@ Phase 4B verifies these drafts in a disposable local database only. See
 [local database verification](docs/PHASE_4B_DATABASE_VERIFICATION.md) for target
 guards, test commands, security limitations and safe shutdown instructions.
 
-The database will be connected after the demo has been reviewed and corrected.
+The following is historical setup guidance, not an authorized procedure for the
+already-provisioned project. Do not repeat project creation or deploy the three
+existing migrations. CLI token-based database access can create temporary hosted
+roles; hosted operations require separate approval. Application persistence is
+still a later implementation slice.
 
 1. Create a Supabase project in the appropriate region.
 2. In Authentication settings, disable public email sign-up.

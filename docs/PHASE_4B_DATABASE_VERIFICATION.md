@@ -169,7 +169,11 @@ stub was used. A random disposable database password was generated without
 printing/storing it in project files. Never inspect or paste container Env/logs
 for credentials.
 
-Safe reproduction, only if this exact test container does not already exist:
+Historical Phase 4C reproduction, only if this exact test container does not already exist:
+
+The paths below use the Phase 6A aligned filenames; SQL bytes and historical
+results are unchanged. For current isolated testing use the Phase 5B integration
+runner instead; do not restart the existing stopped Phase 4C container.
 
 ```bash
 docker create --name closevault-phase4c-whitespace-local --network none \
@@ -186,8 +190,8 @@ docker inspect closevault-phase4c-whitespace-local --format '{{.HostConfig.Netwo
 docker start closevault-phase4c-whitespace-local
 # Wait for Unix-socket readiness; never assume readiness from docker start alone.
 docker exec closevault-phase4c-whitespace-local pg_isready -h /var/run/postgresql -U postgres -d postgres
-docker exec -i closevault-phase4c-whitespace-local psql -X -q -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261010000100_secure_foundation.sql
-docker exec -i closevault-phase4c-whitespace-local psql -X -q -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261010000200_foundation_commands.sql
+docker exec -i closevault-phase4c-whitespace-local psql -X -q -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261010202459_secure_foundation.sql
+docker exec -i closevault-phase4c-whitespace-local psql -X -q -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261010202601_foundation_commands.sql
 docker exec -i closevault-phase4c-whitespace-local psql -X -qAt -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/foundation.test.sql
 node supabase/tests/concurrency.mjs
 docker stop closevault-phase4c-whitespace-local

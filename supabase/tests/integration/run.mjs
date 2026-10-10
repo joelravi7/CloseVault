@@ -76,9 +76,16 @@ try {
   await ready(() => probe('http://auth:9999/health'), 'Auth');
   create('authshort', { ...authEnv, API_EXTERNAL_URL: 'http://authshort:9999', GOTRUE_JWT_EXP: '5' });
   await ready(() => probe('http://authshort:9999/health'), 'Short-lived Auth');
-  const migrations = ['20261010000100_secure_foundation.sql', '20261010000200_foundation_commands.sql', '20261010181858_owner_status.sql'];
-  for (const file of migrations) {
-    const source = execFileSync('git', ['show', `${base}:supabase/migrations/${file}`], { encoding: 'utf8' }); psql(source);
+  const migrations = [
+    ['20261010202459_secure_foundation.sql', '20261010000100_secure_foundation.sql'],
+    ['20261010202601_foundation_commands.sql', '20261010000200_foundation_commands.sql'],
+    ['20261010202607_owner_status.sql', '20261010181858_owner_status.sql'],
+  ];
+  for (const [file, preservedFile] of migrations) {
+    const source = readFileSync(`supabase/migrations/${file}`);
+    const preserved = execFileSync('git', ['show', `${base}:supabase/migrations/${preservedFile}`]);
+    assert.deepEqual(source, preserved, `Migration bytes differ from preserved source: ${file}`);
+    psql(source);
     process.stdout.write(`PASS migration ${file} SHA256 ${createHash('sha256').update(source).digest('hex')}\n`);
   }
   for (const file of ['foundation.test.sql', 'owner-status.test.sql']) {

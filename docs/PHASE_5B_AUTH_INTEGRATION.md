@@ -12,8 +12,10 @@ The production application and all migrations are unchanged.
 - Preserved commit: `43fe931195247b7b6682f0875704e09efb453d42`.
 - Parent: `597890abc33755a821b7003d40a8bc6c23db856d`.
 
-The harness reads migration and authentication source bytes with `git show`
-from that exact preserved commit, not from an accidentally modified worktree.
+The harness reads authentication source bytes with `git show` from that exact
+preserved commit. Since Phase 6A, it applies the renamed working-tree migration
+files only after comparing their bytes with the original migrations in that
+preserved commit. See [migration alignment](PHASE_6A_MIGRATION_ALIGNMENT.md).
 It requires that checkpoint to match and that the commit remain an ancestor of
 HEAD. Future production changes require a reviewed update to the pinned source
 identity; this harness does not certify newer application code automatically.
@@ -74,7 +76,10 @@ test the configured production HTTPS/publishable-key factory or native storage.
 
 ## Migration integrity and SQL checks
 
-Applied in order from the preserved commit:
+Historical Phase 5B filenames and hashes, applied in order from the preserved
+commit. Phase 6A changes only the filenames; the original-to-current mapping is
+recorded in [migration alignment](PHASE_6A_MIGRATION_ALIGNMENT.md). The current
+runner applies the aligned files after byte-for-byte preserved-source checks:
 
 | Migration | SHA-256 |
 | --- | --- |
