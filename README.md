@@ -8,9 +8,14 @@ CloseVault is a private, single-owner real-estate lead manager for capturing con
 
 This repository contains the **fictional-data demo**, a locally tested database
 foundation, and a local Phase 5A authentication foundation. No hosted
-database deployment or live authentication verification is claimed. See
+database deployment or hosted authentication verification is claimed. See
 [Phase 5A authentication](docs/PHASE_5A_AUTHENTICATION.md) for current boundaries,
 verification results and required approvals.
+
+Phase 5B adds a disposable, internal-network Auth/PostgREST HTTP/JWT test harness.
+See [local integration testing](docs/PHASE_5B_AUTH_INTEGRATION.md) for reproduction,
+security boundaries and evidence. It does not connect to hosted Supabase or
+establish production readiness.
 
 Authentication mode fails closed when configuration or owner verification is
 unavailable. A verified owner currently sees a placeholder workspace, not demo
