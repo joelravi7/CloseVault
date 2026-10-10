@@ -44,6 +44,11 @@ function repository(client: SupabaseClient<Database>, authorize: Authorization, 
   }
   const api: LeadRepository = {
     writable,
+    receipt: commandId => run(async owner => {
+      uuid.parse(commandId);
+      const { data, error } = await client.from('command_receipts').select('command_id,owner_id,command_type,request,result').eq('owner_id', owner).eq('command_id', commandId).maybeSingle();
+      if (error) throw error; return data;
+    }),
     list: (request, signal) => run(async owner => {
       z.object({ page: z.number().int().nonnegative(), search: z.string(), stage: z.enum(persistedLeadStages).optional(), source: z.string().optional() }).parse(request);
       let query = client.from('leads').select('*', { count: 'exact' }).eq('owner_id', owner).order('created_at', { ascending: false }).order('id', { ascending: false });

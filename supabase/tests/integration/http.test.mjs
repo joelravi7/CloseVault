@@ -13,6 +13,8 @@ Module._load = function (name, ...args) {
   if (name === 'expo-secure-store') return {};
   if (name === '@/domain/authentication') return require('./authentication.js');
   if (name === '@/domain/lead-persistence') return require('./lead-persistence.js');
+  if (name === '@/domain/lead-save-recovery') return require('./lead-save-recovery-domain.js');
+  if (name === './supabase/lead-repository') return require('./lead-repository.js');
   return originalLoad.call(this, name, ...args);
 };
 const { AuthController, canAccessPrivate } = require('./authentication.js');
@@ -233,6 +235,7 @@ try {
   });
   await test('recovery unavailable without approved redirect configuration', async () => { const store = storage(); const gateway = createAuthGateway(sdk(store), store); await assert.rejects(gateway.requestRecovery('owner@example.invalid')); });
   await (await import('./leads.test.mjs')).runLeadTests({ test, sdk, query, owner, other, password: config.fixturePassword, anon });
+  await (await import('./recovery.test.mjs')).runRecoveryTests({ test, sdk, query, owner, other, password: config.fixturePassword, anon });
 } catch { failures.push('fixture/bootstrap setup'); console.log('FAIL fixture/bootstrap setup (details withheld)'); }
 finally {
   for (const client of clients) client.auth.stopAutoRefresh();

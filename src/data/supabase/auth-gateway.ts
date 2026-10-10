@@ -2,6 +2,7 @@ import { createClient, processLock, type Session, type SupabaseClient } from '@s
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { z } from 'zod';
+import { pendingLeadKey } from '@/domain/lead-save-recovery';
 
 import { AuthFailure, type AuthGateway, type AuthSession } from '@/domain/authentication';
 import { parseAuthConfiguration, parseRecoveryCode, approvedRecoveryRedirect } from './auth-config';
@@ -108,7 +109,11 @@ export function createAuthGateway(client: SupabaseClient<Database>, storage: Ses
           runtime.loggingOut = true;
           const { error } = await client.auth.signOut({ scope: 'local' }); reject(error);
         }
-        finally { runtime.loggingOut = false; await secure(() => storage.removeItem('closevault.auth.session')); }
+        finally {
+          runtime.loggingOut = false;
+          try { await secure(() => storage.removeItem(pendingLeadKey)); }
+          finally { await secure(() => storage.removeItem('closevault.auth.session')); }
+        }
         // Keep marker until explicit successful sign-in, even after success.
       }));
     },
@@ -147,7 +152,8 @@ export function createAuthGateway(client: SupabaseClient<Database>, storage: Ses
               // Any stale SDK write finishes before cleanup; new login runs after it.
               void enqueue(async () => {
                 await secure(() => storage.setItem(logoutMarker, 'pending'));
-                await secure(() => storage.removeItem('closevault.auth.session'));
+                try { await secure(() => storage.removeItem(pendingLeadKey)); }
+                finally { await secure(() => storage.removeItem('closevault.auth.session')); }
               }).catch(() => { /* secure() already publishes fail-closed storage failure. */ });
             }
             notify('signed_out', null); return;
@@ -164,7 +170,7 @@ export function createAuthGateway(client: SupabaseClient<Database>, storage: Ses
 }
 
 /** Factory only: no network/client creation at module import or in tests. */
-export function createConfiguredAuth(): { gateway: AuthGateway; client: SupabaseClient<Database> } {
+export function createConfiguredAuth(): { gateway: AuthGateway; client: SupabaseClient<Database>; storage: SessionStorageAdapter; environment: string } {
   const config = parseAuthConfiguration(process.env.EXPO_PUBLIC_SUPABASE_URL, process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   const storage = Platform.OS === 'web' ? createWebSessionStorage(() => window.sessionStorage) : createSecureSessionStorage({
     available: () => SecureStore.isAvailableAsync(),
@@ -180,5 +186,5 @@ export function createConfiguredAuth(): { gateway: AuthGateway; client: Supabase
       try { return await fetch(input, { ...init, signal: abort.signal }); } finally { clearTimeout(timer); }
     } },
   });
-  return { gateway: createAuthGateway(client, storage, approvedRecoveryRedirect, configuredRuntime), client };
+  return { gateway: createAuthGateway(client, storage, approvedRecoveryRedirect, configuredRuntime), client, storage, environment: new URL(config.url).origin };
 }

@@ -48,6 +48,10 @@ records. See [Phase 7A lead persistence](docs/PHASE_7A_LEAD_PERSISTENCE.md) for
 application validation policies, isolated mutation testing and production gates.
 See the separate [Phase 7A dependency review](docs/PHASE_7A_DEPENDENCY_REVIEW.md)
 for advisory applicability and deferred remediation; no automatic fixes were applied.
+The pending [Phase 7A-R save recovery](docs/PHASE_7A_R_SAVE_RECOVERY.md) adds
+session-scoped/secure operation metadata and owner-authorized receipt reconciliation.
+It does not enable hosted writes or persist customer request payloads. Exact retries
+require the original in-memory form; after restart, an absent receipt stays uncertain.
 No additional environment variables or credentials are required. All configured
 application environments use the read-only repository; changing an environment
 label cannot enable hosted writes. Mutation-enabled tests accept only loopback

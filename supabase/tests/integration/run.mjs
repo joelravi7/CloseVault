@@ -65,7 +65,7 @@ try {
   docker(['exec', '-i', names.runner, 'tar', '-xf', '-', '-C', '/work'], archive);
   const sources = {};
   for (const [file, target] of Object.entries({ 'src/domain/authentication.ts': 'authentication.js', 'src/data/supabase/auth-gateway.ts': 'auth-gateway.js', 'src/data/supabase/auth-config.ts': 'auth-config.js', 'src/data/supabase/auth-storage.ts': 'auth-storage.js' })) {
-    const source = execFileSync('git', ['show', `${base}:${file}`], { encoding: 'utf8' });
+    const source = file === 'src/data/supabase/auth-gateway.ts' ? readFileSync(file, 'utf8') : execFileSync('git', ['show', `${base}:${file}`], { encoding: 'utf8' });
     sources[target] = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   }
   sources['http.test.mjs'] = readFileSync('supabase/tests/integration/http.test.mjs', 'utf8');
@@ -73,6 +73,8 @@ try {
     sources[target] = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   }
   sources['leads.test.mjs'] = readFileSync('supabase/tests/integration/leads.test.mjs', 'utf8');
+  for (const [file, target] of Object.entries({ 'src/domain/lead-save-recovery.ts': 'lead-save-recovery-domain.js', 'src/data/lead-save-recovery.ts': 'lead-save-recovery.js' })) sources[target] = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  sources['recovery.test.mjs'] = readFileSync('supabase/tests/integration/recovery.test.mjs', 'utf8');
   docker(['exec', '-i', names.runner, 'node', '-e', "const fs=require('fs');for(const [name,source]of Object.entries(JSON.parse(fs.readFileSync(0,'utf8'))))fs.writeFileSync('/work/'+name,source,{mode:0o444});"], JSON.stringify(sources));
   const authEnv = { GOTRUE_API_HOST: '0.0.0.0', GOTRUE_API_PORT: '9999', API_EXTERNAL_URL: 'http://auth:9999', GOTRUE_SITE_URL: 'http://fictional.invalid', GOTRUE_DB_DRIVER: 'postgres', GOTRUE_DB_DATABASE_URL: `postgres://supabase_auth_admin:${authPassword}@db:5432/postgres`, GOTRUE_JWT_SECRET: jwtSecret, GOTRUE_JWT_EXP: '3600', GOTRUE_JWT_AUD: 'authenticated', GOTRUE_JWT_ADMIN_ROLES: 'service_role', GOTRUE_JWT_DEFAULT_GROUP_NAME: 'authenticated', GOTRUE_DISABLE_SIGNUP: 'true', GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true', GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: 'false', GOTRUE_MAILER_AUTOCONFIRM: 'true', GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: 'true', GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: '0', GOTRUE_RATE_LIMIT_TOKEN_REFRESH: '1000', LOG_LEVEL: 'error' };
   create('auth', authEnv);
