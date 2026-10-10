@@ -47,9 +47,14 @@ export interface FollowUp {
   id: string;
   leadId: string;
   title: string;
+  type?: string;
+  description?: string;
   dueAt: string;
-  status: 'upcoming' | 'due' | 'overdue' | 'completed' | 'waiting_for_client';
+  status: 'upcoming' | 'due' | 'overdue' | 'completed' | 'waiting_for_client' | 'cancelled' | 'rescheduled';
   priority: LeadPriority;
+  outcome?: string;
+  completedAt?: string;
+  notificationId?: string;
 }
 
 export interface Activity {
@@ -58,7 +63,17 @@ export interface Activity {
   type: string;
   title: string;
   summary: string;
+  outcome?: string;
+  detailedNotes?: string;
   occurredAt: string;
+}
+
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  category: 'introduction' | 'brochure' | 'price_list' | 'site_visit' | 'follow_up' | 'custom';
+  body: string;
+  active: boolean;
 }
 
 export interface UnitType {

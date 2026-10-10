@@ -13,12 +13,14 @@ Demo-ready flows:
 - Responsive Today command centre
 - Searchable lead list and detailed lead profile
 - Fast lead capture with Zod validation and duplicate detection
+- Activity logging with timeline updates and a required next action
+- Follow-up scheduling with lead and calendar updates
 - Mobile/desktop pipeline and calendar agenda
 - Rule-based apartment recommendations
 - Reconciled payment-plan calculator
 - Commission, phone, scoring, template, duplicate, and ranking business rules
 
-The More screen labels backend-dependent workflows as “Next phase”; those controls are intentionally disabled rather than pretending to work.
+The More screen labels backend-dependent workflows as “Next phase”; those controls are intentionally disabled rather than pretending to work. See `docs/FEATURE_STATUS.md` for the exact implemented, partial, and pending feature inventory.
 
 ## Technology
 

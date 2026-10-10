@@ -9,17 +9,17 @@ const actions = [
   { title: 'Apartment options', detail: 'Rank verified unit types against a requirement', icon: 'business-outline' as const, href: '/options' as const, ready: true },
   { title: 'Payment calculator', detail: 'Build and reconcile a configurable payment plan', icon: 'calculator-outline' as const, href: '/calculator' as const, ready: true },
   { title: 'Documents', detail: 'Private, versioned project documents', icon: 'document-lock-outline' as const },
-  { title: 'Message templates', detail: 'Manual, owner-approved WhatsApp messages', icon: 'chatbubble-ellipses-outline' as const },
+  { title: 'Message templates', detail: 'Manual, owner-approved WhatsApp messages', icon: 'chatbubble-ellipses-outline' as const, href: '/templates' as const, ready: true },
   { title: 'Site visits', detail: 'Briefings, outcomes and follow-ups', icon: 'location-outline' as const },
   { title: 'Commissions', detail: 'Potential, weighted, qualified and received', icon: 'cash-outline' as const },
   { title: 'Reports', detail: 'Personal conversion and opportunity reports', icon: 'bar-chart-outline' as const },
   { title: 'CSV imports', detail: 'Validated Meta and portal lead imports', icon: 'cloud-upload-outline' as const },
-  { title: 'Settings & security', detail: 'Owner profile, biometrics and auto-lock', icon: 'shield-checkmark-outline' as const },
+  { title: 'Settings & security', detail: 'Notifications, biometrics and auto-lock', icon: 'shield-checkmark-outline' as const, href: '/settings' as const, ready: true },
   { title: 'Backup & export', detail: 'Explicit, owner-controlled exports', icon: 'archive-outline' as const },
 ];
 
 export default function MoreScreen() {
-  return <Screen><PageHeader eyebrow="Private workspace" title="More tools" subtitle="The demo enables apartment recommendations and the payment calculator. Backend-dependent tools remain clearly identified." /><View style={styles.grid}>{actions.map((action) => <Pressable key={action.title} disabled={!action.ready} onPress={() => action.href && router.push(action.href)} style={styles.item}>{({ pressed }) => <Card style={[styles.card, !action.ready ? styles.disabled : undefined, pressed ? styles.pressed : undefined]}><View style={styles.icon}><Ionicons name={action.icon} size={22} color={colors.gold} /></View><View style={styles.copy}><View style={styles.inline}><Text style={styles.title}>{action.title}</Text>{action.ready ? <Badge label="Demo ready" tone="success" /> : <Badge label="Next phase" tone="neutral" />}</View><Text style={styles.detail}>{action.detail}</Text></View><Ionicons name="chevron-forward" size={18} color={colors.textMuted} /></Card>}</Pressable>)}</View></Screen>;
+  return <Screen><PageHeader eyebrow="Private workspace" title="More tools" subtitle="Communication workflows and local device security are ready for Milestone 3 testing. Backend-dependent tools remain clearly identified." /><View style={styles.grid}>{actions.map((action) => <Pressable key={action.title} disabled={!action.ready} onPress={() => action.href && router.push(action.href)} style={styles.item}>{({ pressed }) => <Card style={[styles.card, !action.ready ? styles.disabled : undefined, pressed ? styles.pressed : undefined]}><View style={styles.icon}><Ionicons name={action.icon} size={22} color={colors.gold} /></View><View style={styles.copy}><View style={styles.inline}><Text style={styles.title}>{action.title}</Text>{action.ready ? <Badge label="Demo ready" tone="success" /> : <Badge label="Later milestone" tone="neutral" />}</View><Text style={styles.detail}>{action.detail}</Text></View><Ionicons name="chevron-forward" size={18} color={colors.textMuted} /></Card>}</Pressable>)}</View></Screen>;
 }
 
 const styles = StyleSheet.create({

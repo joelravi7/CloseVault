@@ -34,7 +34,14 @@
         }
       ],
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-notifications",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow CloseVault to use Face ID to protect your private CRM workspace."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
