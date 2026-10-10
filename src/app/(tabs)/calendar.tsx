@@ -3,19 +3,23 @@ import { format } from 'date-fns';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Badge, Card, PageHeader, Screen, SectionHeader } from '@/components/ui';
+import { Badge, Button, Card, PageHeader, Screen, SectionHeader } from '@/components/ui';
 import { colors, spacing } from '@/constants/theme';
+import { isActionableFollowUp } from '@/domain/follow-up-cancellation';
 import { useDemoData } from '@/providers/demo-data-provider';
 
 export default function CalendarScreen() {
-  const { followUps, siteVisits, getLead } = useDemoData();
+  const { followUps, siteVisits, getLead, cancellationReminderErrors, retryCancellationReminders } = useDemoData();
   const events = [
-    ...followUps.filter((item) => item.status !== 'completed').map((item) => ({ id: item.id, leadId: item.leadId, at: item.dueAt, title: item.title, kind: 'Follow-up' })),
+    ...followUps.filter(isActionableFollowUp).map((item) => ({ id: item.id, leadId: item.leadId, at: item.dueAt, title: item.title, kind: 'Follow-up' })),
     ...siteVisits.map((item) => ({ id: item.id, leadId: item.leadId, at: item.scheduledAt, title: 'Site visit', kind: 'Site visit' })),
   ].sort((a, b) => a.at.localeCompare(b.at));
   return (
     <Screen>
       <PageHeader eyebrow="Asia / Colombo" title="Calendar" subtitle="A focused agenda for follow-ups, site visits, deadlines and commission actions." />
+      {Object.entries(cancellationReminderErrors).filter(([, errors]) => errors.length > 0).map(([id, errors]) =>
+        <Card key={`reminder-${id}`}><Text accessibilityRole="alert">CRM changes are saved. {errors.join(' ')}</Text>
+          <Button label="Retry reminders" onPress={() => retryCancellationReminders(id)} /></Card>)}
       <SectionHeader title="Agenda" detail={`${events.length} upcoming items`} />
       <View style={styles.timeline}>
         {events.map((event) => {

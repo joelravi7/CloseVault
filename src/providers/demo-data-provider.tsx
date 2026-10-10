@@ -1,7 +1,8 @@
-import { createContext, type PropsWithChildren, useContext, useState } from 'react';
+import { createContext, type Dispatch, type PropsWithChildren, type SetStateAction, useContext, useEffect, useRef, useState } from 'react';
 
 import { demoActivities, demoFollowUps, demoLeads, demoMessageTemplates, demoSiteVisits, unitTypes } from '@/data/demo-fixtures';
 import { formatSriLankanPhone, normalizeSriLankanPhone, priorityFromScore } from '@/domain/business-rules';
+import { applyCancellation, cancellationSchema, type CancellationState, isActionableFollowUp, requireCancellable } from '@/domain/follow-up-cancellation';
 import type { Activity, FollowUp, Lead, LeadStage, MessageTemplate, SiteVisit, UnitType } from '@/domain/models';
 import { cancelFollowUpNotification, scheduleFollowUpNotification } from '@/services/notifications';
 
@@ -19,16 +20,80 @@ interface DemoDataContextValue {
   recordWhatsAppSent: (leadId: string, templateName: string, message: string, nextAction?: string, nextFollowUpAt?: string) => Promise<void>;
   saveTemplate: (template: Omit<MessageTemplate, 'id' | 'active'> & { id?: string }) => void; duplicateTemplate: (id: string) => void; archiveTemplate: (id: string) => void;
   getLead: (id: string) => Lead | undefined;
+  cancellationReminderErrors: Record<string, string[]>;
+  retryCancellationReminders: (originalId: string) => void;
 }
+
+interface CancellationJob { originalId: string; oldNotificationId?: string; replacement: FollowUp; firstName: string }
+interface CRMState extends CancellationState { cancellationJobs: CancellationJob[] }
 
 const DemoDataContext = createContext<DemoDataContextValue | null>(null);
 const isClosedOutcome = (outcome: string) => ['Not interested', 'Purchased elsewhere', 'Incorrect number'].includes(outcome);
 
 export function DemoDataProvider({ children }: PropsWithChildren) {
-  const [leads, setLeads] = useState(demoLeads);
-  const [followUps, setFollowUps] = useState(demoFollowUps);
-  const [activities, setActivities] = useState(demoActivities);
+  const [crm, publishCRM] = useState<CRMState>({ leads: demoLeads, followUps: demoFollowUps, activities: demoActivities, cancellationJobs: [] });
+  // The authoritative local snapshot is applied synchronously at the command boundary.
+  // React receives an immutable render snapshot; it does not decide command success.
+  const latest = useRef(crm);
+  const setCRM = (update: (current: CRMState) => CRMState): void => {
+    const next = update(latest.current); // Pure calculation; a rejection propagates to the caller.
+    latest.current = next;
+    publishCRM(next);
+  };
+  const { leads, followUps, activities } = crm;
+  // Preserve existing workflow setters while cancellation uses one CRM transition.
+  const setLeads: Dispatch<SetStateAction<Lead[]>> = (update) => setCRM((current) => ({ ...current, leads: typeof update === 'function' ? update(current.leads) : update }));
+  const setFollowUps: Dispatch<SetStateAction<FollowUp[]>> = (update) => setCRM((current) => ({ ...current, followUps: typeof update === 'function' ? update(current.followUps) : update }));
+  const setActivities: Dispatch<SetStateAction<Activity[]>> = (update) => setCRM((current) => ({ ...current, activities: typeof update === 'function' ? update(current.activities) : update }));
   const [templates, setTemplates] = useState(demoMessageTemplates);
+  const handled = useRef(new Set<string>());
+  const running = useRef(new Set<string>());
+  const progress = useRef(new Map<string, { cancelled: boolean; scheduled: boolean; obsoleteIds: Set<string> }>());
+  const [cancellationReminderErrors, setReminderErrors] = useState<Record<string, string[]>>({});
+  const [retryVersion, setRetryVersion] = useState(0);
+
+  useEffect(() => {
+    for (const job of crm.cancellationJobs) {
+      if (handled.current.has(job.originalId)) continue;
+      handled.current.add(job.originalId); // Includes in-flight work; Strict Mode cannot duplicate it.
+      running.current.add(job.originalId);
+      const steps = progress.current.get(job.originalId) ?? { cancelled: false, scheduled: false, obsoleteIds: new Set<string>() };
+      progress.current.set(job.originalId, steps);
+      void (async () => {
+        const errors: string[] = [];
+        if (!steps.cancelled) {
+          try {
+            if (job.oldNotificationId) await cancelFollowUpNotification(job.oldNotificationId);
+            steps.cancelled = true;
+          } catch { errors.push('Original reminder cancellation failed. Retry required.'); }
+        }
+        if (!steps.scheduled) {
+          try {
+            const task = latest.current.followUps.find((item) => item.id === job.replacement.id);
+            if (task && isActionableFollowUp(task)) {
+              const notificationId = await scheduleFollowUpNotification(job.firstName, task.title, task.dueAt);
+              // Reconcile against authoritative state AFTER the native await.
+              const currentTask = latest.current.followUps.find((item) => item.id === task.id);
+              if (notificationId) {
+                if (currentTask && isActionableFollowUp(currentTask)) {
+                  setCRM((current) => ({ ...current, followUps: current.followUps.map((item) => item.id === task.id ? { ...item, notificationId } : item) }));
+                } else steps.obsoleteIds.add(notificationId);
+              }
+            }
+            steps.scheduled = true;
+          } catch { errors.push('Replacement reminder scheduling failed. Retry required.'); }
+        }
+        for (const notificationId of steps.obsoleteIds) {
+          try {
+            await cancelFollowUpNotification(notificationId);
+            steps.obsoleteIds.delete(notificationId);
+          } catch { errors.push('Obsolete reminder cleanup failed. Retry required.'); }
+        }
+        setReminderErrors((current) => ({ ...current, [job.originalId]: errors }));
+        running.current.delete(job.originalId);
+      })();
+    }
+  }, [crm.cancellationJobs, retryVersion]);
 
   const createFollowUp = (input: NewFollowUpInput) => {
     const timestamp = Date.now();
@@ -40,6 +105,12 @@ export function DemoDataProvider({ children }: PropsWithChildren) {
 
   const value: DemoDataContextValue = {
     leads, followUps, activities, templates, siteVisits: demoSiteVisits, unitTypes,
+    cancellationReminderErrors,
+    retryCancellationReminders: (id) => {
+      if (running.current.has(id) || !cancellationReminderErrors[id]?.length) return;
+      handled.current.delete(id);
+      setRetryVersion((current) => current + 1);
+    },
     getLead: (id) => leads.find((lead) => lead.id === id),
     addActivity: (input) => {
       if (!leads.some((lead) => lead.id === input.leadId)) throw new Error('Lead not found.');
@@ -66,6 +137,24 @@ export function DemoDataProvider({ children }: PropsWithChildren) {
       void scheduleFollowUpNotification(lead.fullName.split(' ')[0], followUp.title, followUp.dueAt); return lead;
     },
     resolveFollowUp: async (id, resolution) => {
+      if (resolution.action === 'cancel') {
+        const parsed = cancellationSchema.safeParse(resolution);
+        if (!parsed.success) throw new Error('Cancellation requires a reason, replacement action, and valid date/time.');
+        const { original, lead } = requireCancellable(latest.current, id);
+        const timestamp = new Date().toISOString();
+        const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const replacement: FollowUp = { id: `fu-${token}`, leadId: lead.id, title: parsed.data.nextAction,
+          dueAt: parsed.data.nextFollowUpAt, status: 'upcoming', priority: lead.priority, type: 'next_action' };
+        const activity: Activity = { id: `activity-${token}`, leadId: lead.id, type: 'follow_up_outcome',
+          title: 'Follow-up cancel', summary: parsed.data.outcome, occurredAt: timestamp };
+        const job: CancellationJob = { originalId: id, oldNotificationId: original.notificationId,
+          replacement, firstName: lead.fullName.split(' ')[0] };
+        setCRM((current) => {
+          const next = applyCancellation(current, id, replacement, activity, parsed.data.outcome);
+          return { ...next, cancellationJobs: [...current.cancellationJobs, job] };
+        });
+        return; // Authoritative CRM transition is applied; notifications finish separately.
+      }
       const existing = followUps.find((item) => item.id === id); if (!existing) throw new Error('Follow-up not found.');
       const lead = leads.find((item) => item.id === existing.leadId); if (!lead) throw new Error('Lead not found.');
       await cancelFollowUpNotification(existing.notificationId);
@@ -81,7 +170,7 @@ export function DemoDataProvider({ children }: PropsWithChildren) {
         setFollowUps((current) => [replacement, ...current.filter((item) => item.id !== id)]);
         setLeads((current) => current.map((item) => item.id === lead.id ? { ...item, nextAction: replacement.title, nextFollowUpAt: replacement.dueAt } : item));
       } else {
-        const status = resolution.action === 'cancel' || resolution.action === 'lost' ? 'cancelled' : 'completed';
+        const status = resolution.action === 'lost' ? 'cancelled' : 'completed';
         setFollowUps((current) => current.map((item) => item.id === id ? { ...item, status, outcome: resolution.outcome, completedAt: timestamp } : item));
         if (resolution.action === 'lost') setLeads((current) => current.map((item) => item.id === lead.id ? { ...item, stage: 'lost', temperature: 'closed', priority: 'closed', probability: 0, nextAction: 'Closed – lost', nextFollowUpAt: undefined } : item));
         else if (resolution.nextAction && resolution.nextFollowUpAt) {
