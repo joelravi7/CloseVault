@@ -25,6 +25,22 @@ for checksums, historical mappings and local verification. Hosted CLI migration
 listing and deployment dry-run are deliberately deferred; do not run them as
 part of this local-only workflow.
 
+Phase 6C prepares the existing Expo authentication path for owner-operated
+hosted login. See [hosted Auth preparation](docs/PHASE_6C_HOSTED_AUTH.md).
+Use the ignored `.env.local` with the owner-approved URL, modern publishable key
+and `EXPO_PUBLIC_APP_ENV=development`. Enter the key privately in that file and
+the password only in the application; never commit local configuration. Restart
+Metro after environment changes. The authenticated workspace remains a safe
+placeholder: this does not enable customer-data entry or password recovery.
+If an export or running bundle retains old environment values, restart Metro
+with `--clear` and rebuild with `npm run build:web -- --clear`. Verify the new
+configuration without printing key values before owner login testing.
+The owner has confirmed real web login, refresh/session restoration, and
+sign-out/protected-route handling passed. The Phase 6C report separately records
+ChatGPT's hosted security checks as supplied evidence. Native-device testing,
+recovery and tested production backup procedures remain pending. Real customer-
+data entry is not authorized.
+
 Authentication mode fails closed when configuration or owner verification is
 unavailable. A verified owner currently sees a placeholder workspace, not demo
 CRM records. The persistence adapter is a later vertical slice.
