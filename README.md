@@ -83,6 +83,16 @@ Use EAS environment variables for preview and production instead of committed `.
 
 ## Supabase setup — next milestone
 
+Phase 4A adds local-only draft migrations and SQL tests. They are **not deployed**,
+and the application still uses demo state. See
+[Phase 4A foundation](docs/PHASE_4A_DATABASE_FOUNDATION.md) for implemented scope,
+unexecuted database checks and required approvals. Do not run the remote setup
+commands below as part of Phase 4A.
+
+Phase 4B verifies these drafts in a disposable local database only. See
+[local database verification](docs/PHASE_4B_DATABASE_VERIFICATION.md) for target
+guards, test commands, security limitations and safe shutdown instructions.
+
 The database will be connected after the demo has been reviewed and corrected.
 
 1. Create a Supabase project in the appropriate region.
