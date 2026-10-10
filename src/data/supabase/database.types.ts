@@ -262,6 +262,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cv_owner_status: {
+        Args: { [K in never]: never }
+        Returns: boolean
+      }
       cv_cancel_follow_up: {
         Args: {
           p_command_id: string

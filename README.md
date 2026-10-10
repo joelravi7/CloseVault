@@ -6,7 +6,15 @@ CloseVault is a private, single-owner real-estate lead manager for capturing con
 
 ## Current status
 
-This repository currently contains the first **fictional-data demo milestone**. It is designed for product review before any real database, credentials, client records, notifications, or hosting are connected.
+This repository contains the **fictional-data demo**, a locally tested database
+foundation, and a local Phase 5A authentication foundation. No hosted
+database deployment or live authentication verification is claimed. See
+[Phase 5A authentication](docs/PHASE_5A_AUTHENTICATION.md) for current boundaries,
+verification results and required approvals.
+
+Authentication mode fails closed when configuration or owner verification is
+unavailable. A verified owner currently sees a placeholder workspace, not demo
+CRM records. The persistence adapter is a later vertical slice.
 
 Demo-ready flows:
 
@@ -48,7 +56,10 @@ cp .env.example .env
 npm run start
 ```
 
-No environment values are required for the fictional demo.
+For the fictional demo, explicitly set `EXPO_PUBLIC_APP_ENV=demo` in your local
+environment and use a development build. No Supabase values are required for
+that mode. Release builds ignore the demo label. The default `development`
+label selects authentication mode; missing configuration blocks access.
 
 Run a specific platform:
 
@@ -69,7 +80,7 @@ npm run build:web
 
 ## Environment variables
 
-Copy `.env.example` to `.env` only when beginning the connected phase:
+Copy `.env.example` to a local ignored `.env` when configuring a selected mode:
 
 ```dotenv
 EXPO_PUBLIC_SUPABASE_URL=
@@ -81,10 +92,25 @@ Only the project URL and client-safe publishable key belong in Expo. Never put a
 
 Use EAS environment variables for preview and production instead of committed `.env` files.
 
+Phase 5A adds no new environment-variable names. Authentication requires a valid
+HTTPS URL and a client-safe `sb_publishable_...` key; privileged and legacy secret
+keys are rejected. Do not launch configured authentication mode against hosted
+Supabase until remote testing is separately approved. Password recovery remains
+disabled until the owner approves final HTTPS/native redirects and remote Auth
+settings. No signup UI is provided.
+
+The additional local-only migration
+`supabase/migrations/20261010181858_owner_status.sql` exposes an authenticated
+boolean owner-status RPC, not the private owner registry. Its isolated tests are
+`supabase/tests/owner-status.test.sql`. It has not been deployed. Apply only after
+separate review/authorization using the safe isolated procedure documented in
+the Phase 5A report; do not use the older all-interface CLI startup.
+
 ## Supabase setup — next milestone
 
 Phase 4A adds local-only draft migrations and SQL tests. They are **not deployed**,
-and the application still uses demo state. See
+and the fictional demo still uses in-memory state. Authentication mode never
+uses that provider. See
 [Phase 4A foundation](docs/PHASE_4A_DATABASE_FOUNDATION.md) for implemented scope,
 unexecuted database checks and required approvals. Do not run the remote setup
 commands below as part of Phase 4A.
