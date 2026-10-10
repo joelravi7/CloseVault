@@ -12,6 +12,7 @@ Module._load = function (name, ...args) {
   if (name === 'react-native') return { Platform: { OS: 'node' } };
   if (name === 'expo-secure-store') return {};
   if (name === '@/domain/authentication') return require('./authentication.js');
+  if (name === '@/domain/lead-persistence') return require('./lead-persistence.js');
   return originalLoad.call(this, name, ...args);
 };
 const { AuthController, canAccessPrivate } = require('./authentication.js');
@@ -231,6 +232,7 @@ try {
     release(); await signingIn; await new Promise(resolve => setTimeout(resolve, 30)); assert.equal(canAccessPrivate(controller.getState()), false); controller.stop();
   });
   await test('recovery unavailable without approved redirect configuration', async () => { const store = storage(); const gateway = createAuthGateway(sdk(store), store); await assert.rejects(gateway.requestRecovery('owner@example.invalid')); });
+  await (await import('./leads.test.mjs')).runLeadTests({ test, sdk, query, owner, other, password: config.fixturePassword, anon });
 } catch { failures.push('fixture/bootstrap setup'); console.log('FAIL fixture/bootstrap setup (details withheld)'); }
 finally {
   for (const client of clients) client.auth.stopAutoRefresh();

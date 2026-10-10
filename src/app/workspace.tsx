@@ -1,2 +1,3 @@
-import { AuthScreen } from '@/features/auth/auth-screen';
-export default function Workspace() { return <AuthScreen kind="workspace" />; }
+import { PersistedLeadListScreen } from '@/features/leads/persisted-lead-screens';
+import { LeadRepositoryProvider } from '@/providers/lead-repository-provider';
+export default function Workspace() { return <LeadRepositoryProvider><PersistedLeadListScreen /></LeadRepositoryProvider>; }

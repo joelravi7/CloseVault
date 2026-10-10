@@ -7,10 +7,10 @@ CloseVault is a private, single-owner real-estate lead manager for capturing con
 ## Current status
 
 This repository contains the **fictional-data demo**, a locally tested database
-foundation, and a local Phase 5A authentication foundation. The owner has supplied
-independently verified evidence that the three database migrations are deployed;
-this local workflow does not independently inspect hosted Supabase or verify
-hosted authentication. See
+foundation, owner-only authentication, and the Phase 7A read-only hosted lead slice.
+The owner has supplied independently verified evidence that the three database
+migrations are deployed and has manually verified hosted web authentication.
+This local implementation/testing workflow does not inspect hosted Supabase. See
 [Phase 5A authentication](docs/PHASE_5A_AUTHENTICATION.md) for current boundaries,
 verification results and required approvals.
 
@@ -30,8 +30,9 @@ hosted login. See [hosted Auth preparation](docs/PHASE_6C_HOSTED_AUTH.md).
 Use the ignored `.env.local` with the owner-approved URL, modern publishable key
 and `EXPO_PUBLIC_APP_ENV=development`. Enter the key privately in that file and
 the password only in the application; never commit local configuration. Restart
-Metro after environment changes. The authenticated workspace remains a safe
-placeholder: this does not enable customer-data entry or password recovery.
+Metro after environment changes. Phase 7A replaces the authenticated placeholder
+with owner-authorized lead reads; hosted create/edit remains disabled and password
+recovery remains unavailable.
 If an export or running bundle retains old environment values, restart Metro
 with `--clear` and rebuild with `npm run build:web -- --clear`. Verify the new
 configuration without printing key values before owner login testing.
@@ -42,8 +43,15 @@ recovery and tested production backup procedures remain pending. Real customer-
 data entry is not authorized.
 
 Authentication mode fails closed when configuration or owner verification is
-unavailable. A verified owner currently sees a placeholder workspace, not demo
-CRM records. The persistence adapter is a later vertical slice.
+unavailable. A verified owner sees the read-only lead workspace, never demo CRM
+records. See [Phase 7A lead persistence](docs/PHASE_7A_LEAD_PERSISTENCE.md) for
+application validation policies, isolated mutation testing and production gates.
+See the separate [Phase 7A dependency review](docs/PHASE_7A_DEPENDENCY_REVIEW.md)
+for advisory applicability and deferred remediation; no automatic fixes were applied.
+No additional environment variables or credentials are required. All configured
+application environments use the read-only repository; changing an environment
+label cannot enable hosted writes. Mutation-enabled tests accept only loopback
+or the disposable internal PostgREST endpoint, with redirects rejected.
 
 Demo-ready flows:
 

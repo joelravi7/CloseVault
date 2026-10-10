@@ -35,6 +35,7 @@ function RootRoutes() {
           </Stack.Protected>
           <Stack.Protected guard={!demo && canAccessPrivate(state)}>
             <Stack.Screen name="workspace" options={{ title: 'Private workspace' }} />
+            <Stack.Screen name="crm" options={{ title: 'Lead management' }} />
           </Stack.Protected>
           <Stack.Protected guard={demo}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
