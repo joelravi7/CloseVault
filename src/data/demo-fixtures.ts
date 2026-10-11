@@ -1,6 +1,6 @@
 import { addDays, addHours, setHours, setMinutes, subDays } from 'date-fns';
 
-import type { Activity, FollowUp, Lead, SiteVisit, UnitType } from '@/domain/models';
+import type { Activity, FollowUp, Lead, MessageTemplate, SiteVisit, UnitType } from '@/domain/models';
 
 const todayAt = (hour: number, minute = 0) => setMinutes(setHours(new Date(), hour), minute).toISOString();
 
@@ -126,6 +126,14 @@ export const demoActivities: Activity[] = [
   { id: 'a-2', leadId: 'amara-perera', type: 'brochure_sent', title: 'Brochure sent', summary: 'Sent the current project brochure by WhatsApp; delivery not independently verified.', occurredAt: subDays(new Date(), 2).toISOString() },
   { id: 'a-3', leadId: 'dilan-fernando', type: 'price_list_sent', title: 'Price list recorded as sent', summary: 'Shared current two-bedroom options.', occurredAt: subDays(new Date(), 2).toISOString() },
   { id: 'a-4', leadId: 'naveen-jayasinghe', type: 'site_visit', title: 'Site visit completed', summary: 'Preferred the four-bedroom layout; requested a revised payment schedule.', occurredAt: subDays(new Date(), 3).toISOString() },
+];
+
+export const demoMessageTemplates: MessageTemplate[] = [
+  { id: 'tpl-intro', name: 'Warm introduction', category: 'introduction', active: true, body: 'Hi {{first_name}}, thank you for your interest in {{project_name}}. I’m Joel, and I can help you compare the available {{bedrooms}}-bedroom options. When would be a convenient time for a quick call?' },
+  { id: 'tpl-brochure', name: 'Brochure follow-up', category: 'brochure', active: true, body: 'Hi {{first_name}}, I’ve shared the latest {{project_name}} brochure for your review. I’ll check in on {{next_follow_up}} to answer any questions.' },
+  { id: 'tpl-price', name: 'Price-list context', category: 'price_list', active: true, body: 'Hi {{first_name}}, the current {{bedrooms}}-bedroom options at {{project_name}} are ready to compare. Prices and availability can change, so I’ll confirm the latest position before you decide.' },
+  { id: 'tpl-visit', name: 'Site-visit confirmation', category: 'site_visit', active: true, body: 'Hi {{first_name}}, this confirms our visit to {{project_name}} on {{next_follow_up}}. Please let me know if the timing needs to change.' },
+  { id: 'tpl-checkin', name: 'Gentle check-in', category: 'follow_up', active: true, body: 'Hi {{first_name}}, just checking whether you had any questions about {{project_name}}. I’m happy to help whenever the timing is right.' },
 ];
 
 export const demoSiteVisits: SiteVisit[] = [

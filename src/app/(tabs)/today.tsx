@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { format, isToday, isBefore } from 'date-fns';
 import { router } from 'expo-router';
-import { Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Badge, Button, Card, PageHeader, Screen, SectionHeader } from '@/components/ui';
 import { colors, radii, spacing } from '@/constants/theme';
@@ -10,8 +10,8 @@ import { useDemoData } from '@/providers/demo-data-provider';
 
 export default function TodayScreen() {
   const { width } = useWindowDimensions();
-  const { leads, followUps, siteVisits, completeFollowUp, getLead } = useDemoData();
-  const openFollowUps = followUps.filter((item) => item.status !== 'completed');
+  const { leads, followUps, siteVisits, getLead } = useDemoData();
+  const openFollowUps = followUps.filter((item) => ['upcoming', 'due', 'overdue', 'waiting_for_client'].includes(item.status));
   const dueToday = openFollowUps.filter((item) => isToday(new Date(item.dueAt)));
   const overdue = openFollowUps.filter((item) => isBefore(new Date(item.dueAt), new Date()));
   const newLeads = leads.filter((lead) => lead.stage === 'new');
@@ -63,9 +63,9 @@ export default function TodayScreen() {
                       </View>
                     </Pressable>
                     <View style={styles.taskActions}>
-                      <Pressable accessibilityLabel={`Call ${lead.fullName}`} style={styles.iconButton} onPress={() => Linking.openURL(`tel:${lead.normalizedPhone}`)}><Ionicons name="call" size={18} color={colors.navy} /></Pressable>
-                      <Pressable accessibilityLabel={`Open WhatsApp for ${lead.fullName}`} style={styles.iconButton} onPress={() => Linking.openURL(`https://wa.me/${lead.normalizedPhone.slice(1)}`)}><Ionicons name="logo-whatsapp" size={19} color={colors.success} /></Pressable>
-                      <Button label="Complete" variant="secondary" onPress={() => completeFollowUp(followUp.id)} />
+                      <Pressable accessibilityLabel={`Call ${lead.fullName}`} style={styles.iconButton} onPress={() => router.push({ pathname: '/call-outcome', params: { leadId: lead.id } })}><Ionicons name="call" size={18} color={colors.navy} /></Pressable>
+                      <Pressable accessibilityLabel={`Open WhatsApp for ${lead.fullName}`} style={styles.iconButton} onPress={() => router.push({ pathname: '/whatsapp', params: { leadId: lead.id } })}><Ionicons name="logo-whatsapp" size={19} color={colors.success} /></Pressable>
+                      <Button label="Resolve" variant="secondary" onPress={() => router.push({ pathname: '/follow-up-action', params: { followUpId: followUp.id } })} />
                     </View>
                   </Card>
                 );

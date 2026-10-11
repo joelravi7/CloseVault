@@ -6,19 +6,87 @@ CloseVault is a private, single-owner real-estate lead manager for capturing con
 
 ## Current status
 
-This repository currently contains the first **fictional-data demo milestone**. It is designed for product review before any real database, credentials, client records, notifications, or hosting are connected.
+This repository contains the **fictional-data demo**, a locally tested database
+foundation, owner-only authentication, and the Phase 7A read-only hosted lead slice.
+The owner has supplied independently verified evidence that the three database
+migrations are deployed and has manually verified hosted web authentication.
+This local implementation/testing workflow does not inspect hosted Supabase. See
+[Phase 5A authentication](docs/PHASE_5A_AUTHENTICATION.md) for current boundaries,
+verification results and required approvals.
+
+Phase 5B adds a disposable, internal-network Auth/PostgREST HTTP/JWT test harness.
+See [local integration testing](docs/PHASE_5B_AUTH_INTEGRATION.md) for reproduction,
+security boundaries and evidence. It does not connect to hosted Supabase or
+establish production readiness.
+
+Phase 6A aligns local migration filenames with the owner-provided hosted version
+IDs without changing SQL bytes. See [migration alignment](docs/PHASE_6A_MIGRATION_ALIGNMENT.md)
+for checksums, historical mappings and local verification. Hosted CLI migration
+listing and deployment dry-run are deliberately deferred; do not run them as
+part of this local-only workflow.
+
+Phase 6C prepares the existing Expo authentication path for owner-operated
+hosted login. See [hosted Auth preparation](docs/PHASE_6C_HOSTED_AUTH.md).
+Use the ignored `.env.local` with the owner-approved URL, modern publishable key
+and `EXPO_PUBLIC_APP_ENV=development`. Enter the key privately in that file and
+the password only in the application; never commit local configuration. Restart
+Metro after environment changes. Phase 7A replaces the authenticated placeholder
+with owner-authorized lead reads; hosted create/edit remains disabled and password
+recovery remains unavailable.
+If an export or running bundle retains old environment values, restart Metro
+with `--clear` and rebuild with `npm run build:web -- --clear`. Verify the new
+configuration without printing key values before owner login testing.
+The owner has confirmed real web login, refresh/session restoration, and
+sign-out/protected-route handling passed. The Phase 6C report separately records
+ChatGPT's hosted security checks as supplied evidence. Native-device testing,
+recovery and tested production backup procedures remain pending. Real customer-
+data entry is not authorized.
+
+Authentication mode fails closed when configuration or owner verification is
+unavailable. A verified owner sees the read-only lead workspace, never demo CRM
+records. See [Phase 7A lead persistence](docs/PHASE_7A_LEAD_PERSISTENCE.md) for
+application validation policies, isolated mutation testing and production gates.
+See the separate [Phase 7A dependency review](docs/PHASE_7A_DEPENDENCY_REVIEW.md)
+for advisory applicability and deferred remediation; no automatic fixes were applied.
+The pending [Phase 7A-R save recovery](docs/PHASE_7A_R_SAVE_RECOVERY.md) adds
+session-scoped/secure operation metadata and owner-authorized receipt reconciliation.
+It does not enable hosted writes or persist customer request payloads. Exact retries
+require the original in-memory form; after restart, an absent receipt stays uncertain.
+The local-only [Phase 7S-A backup rehearsal](docs/PHASE_7S_A_BACKUP_RESTORE.md)
+tests age-encrypted streaming PostgreSQL recovery with fictional data. Requires the
+official `age` and `age-keygen` tools (verified version 1.3.2). Run
+`node scripts/backup/rehearse.mjs`; no hosted connection arguments are accepted.
+It does not prove hosted backup or full Supabase disaster recovery. No new credentials
+or environment variables are required; disposable identities are generated privately.
+The pending [Phase 7S-B hosted-backup readiness](docs/PHASE_7S_B_HOSTED_BACKUP_READINESS.md)
+adds an export-only, separately confirmed operator workflow and a
+[private operator runbook](docs/PHASE_7S_B_OPERATOR_RUNBOOK.md). It has only been tested
+against isolated fictional TLS sources; do not run its hosted export until separately
+authorized. It uses external private passfiles, an official CA, PG17 client tools and
+an owner-supplied age public recipient, not application environment variables.
+The active [Release 1 readiness checklist](docs/RELEASE_1_READINESS.md) consolidates
+pilot blockers and owner acceptance. Hosted mutations and customer entry remain disabled.
+The private workspace now links to `/crm/follow-ups`: owner-scoped Today, Overdue and
+Upcoming queues with 25-task pages and lead navigation. Atomic cancel-and-replace uses
+the existing command recovery journal in isolated tests; hosted cancellation remains disabled.
+No additional environment variables or credentials are required. All configured
+application environments use the read-only repository; changing an environment
+label cannot enable hosted writes. Mutation-enabled tests accept only loopback
+or the disposable internal PostgREST endpoint, with redirects rejected.
 
 Demo-ready flows:
 
 - Responsive Today command centre
 - Searchable lead list and detailed lead profile
 - Fast lead capture with Zod validation and duplicate detection
+- Activity logging with timeline updates and a required next action
+- Follow-up scheduling with lead and calendar updates
 - Mobile/desktop pipeline and calendar agenda
 - Rule-based apartment recommendations
 - Reconciled payment-plan calculator
 - Commission, phone, scoring, template, duplicate, and ranking business rules
 
-The More screen labels backend-dependent workflows as “Next phase”; those controls are intentionally disabled rather than pretending to work.
+The More screen labels backend-dependent workflows as “Next phase”; those controls are intentionally disabled rather than pretending to work. See `docs/FEATURE_STATUS.md` for the exact implemented, partial, and pending feature inventory.
 
 ## Technology
 
@@ -46,7 +114,10 @@ cp .env.example .env
 npm run start
 ```
 
-No environment values are required for the fictional demo.
+For the fictional demo, explicitly set `EXPO_PUBLIC_APP_ENV=demo` in your local
+environment and use a development build. No Supabase values are required for
+that mode. Release builds ignore the demo label. The default `development`
+label selects authentication mode; missing configuration blocks access.
 
 Run a specific platform:
 
@@ -67,7 +138,7 @@ npm run build:web
 
 ## Environment variables
 
-Copy `.env.example` to `.env` only when beginning the connected phase:
+Copy `.env.example` to a local ignored `.env` when configuring a selected mode:
 
 ```dotenv
 EXPO_PUBLIC_SUPABASE_URL=
@@ -79,9 +150,39 @@ Only the project URL and client-safe publishable key belong in Expo. Never put a
 
 Use EAS environment variables for preview and production instead of committed `.env` files.
 
+Phase 5A adds no new environment-variable names. Authentication requires a valid
+HTTPS URL and a client-safe `sb_publishable_...` key; privileged and legacy secret
+keys are rejected. Do not launch configured authentication mode against hosted
+Supabase until remote testing is separately approved. Password recovery remains
+disabled until the owner approves final HTTPS/native redirects and remote Auth
+settings. No signup UI is provided.
+
+The owner-status migration
+`supabase/migrations/20261010202607_owner_status.sql` exposes an authenticated
+boolean owner-status RPC, not the private owner registry. Its isolated tests are
+`supabase/tests/owner-status.test.sql`. Its deployment is covered by the
+owner-provided Phase 6A evidence. Do not reapply it. Local verification uses the
+isolated Phase 5B runner; do not use the older all-interface CLI startup.
+
 ## Supabase setup — next milestone
 
-The database will be connected after the demo has been reviewed and corrected.
+Phase 4A originally added local-only draft migrations and SQL tests. Their
+subsequent deployment is covered by owner-provided Phase 6A evidence, not a
+hosted inspection performed here. The fictional demo still uses in-memory state.
+Authentication mode never uses that provider. See
+[Phase 4A foundation](docs/PHASE_4A_DATABASE_FOUNDATION.md) for implemented scope,
+unexecuted database checks and required approvals. Do not run the remote setup
+commands below as part of Phase 4A.
+
+Phase 4B verifies these drafts in a disposable local database only. See
+[local database verification](docs/PHASE_4B_DATABASE_VERIFICATION.md) for target
+guards, test commands, security limitations and safe shutdown instructions.
+
+The following is historical setup guidance, not an authorized procedure for the
+already-provisioned project. Do not repeat project creation or deploy the three
+existing migrations. CLI token-based database access can create temporary hosted
+roles; hosted operations require separate approval. Application persistence is
+still a later implementation slice.
 
 1. Create a Supabase project in the appropriate region.
 2. In Authentication settings, disable public email sign-up.

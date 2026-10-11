@@ -16,6 +16,9 @@ export default function LeadProfileScreen() {
   const leadActivities = activities.filter((item) => item.leadId === lead.id).sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
   const leadFollowUps = followUps.filter((item) => item.leadId === lead.id && item.status !== 'completed');
   const values = commission(lead.potentialPropertyValue, 2, lead.probability);
+  const startCall = async () => {
+    try { await Linking.openURL(`tel:${lead.normalizedPhone}`); } finally { router.push({ pathname: '/call-outcome', params: { leadId: lead.id } }); }
+  };
   return (
     <Screen>
       <Stack.Screen options={{ headerLeft: () => <Pressable accessibilityRole="button" accessibilityLabel="Back to leads" onPress={() => router.replace('/leads')} style={styles.backButton}><Ionicons name="chevron-back" size={22} color={colors.surface} /><Text style={styles.backText}>Leads</Text></Pressable> }} />
@@ -26,10 +29,10 @@ export default function LeadProfileScreen() {
       </View>
 
       <View style={styles.actions}>
-        <Button label="Call" icon="call" onPress={() => Linking.openURL(`tel:${lead.normalizedPhone}`)} />
-        <Button label="WhatsApp" icon="logo-whatsapp" variant="secondary" onPress={() => Linking.openURL(`https://wa.me/${lead.normalizedPhone.slice(1)}`)} />
-        <Button label="Add activity" icon="add-circle-outline" variant="secondary" onPress={() => {}} />
-        <Button label="Follow-up" icon="alarm-outline" variant="secondary" onPress={() => {}} />
+        <Button label="Call" icon="call" onPress={() => void startCall()} />
+        <Button label="WhatsApp" icon="logo-whatsapp" variant="secondary" onPress={() => router.push({ pathname: '/whatsapp', params: { leadId: lead.id } })} />
+        <Button label="Add activity" icon="add-circle-outline" variant="secondary" onPress={() => router.push({ pathname: '/activity', params: { leadId: lead.id } })} />
+        <Button label="Follow-up" icon="alarm-outline" variant="secondary" onPress={() => router.push({ pathname: '/follow-up', params: { leadId: lead.id } })} />
       </View>
 
       <View style={styles.summaryGrid}>
