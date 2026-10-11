@@ -11,7 +11,7 @@ import { z } from 'zod';
 
 export const sha256 = value => createHash('sha256').update(value).digest('hex');
 const magic = Buffer.from('CVPGAGE1');
-const metadataSchema = z.object({ schema: z.literal(2), scope: z.literal('public,closevault_private'), sourceVersion: z.string().regex(/^17\./), dumpVersion: z.string().regex(/17\./), nodeVersion: z.string(), ageVersion: z.string(), createdAt: z.iso.datetime(), migrations: z.record(z.string(), z.string().regex(/^[a-f0-9]{64}$/)) }).strict();
+const metadataSchema = z.object({ schema: z.literal(2), scope: z.literal('public,closevault_private'), sourceVersion: z.string().regex(/^17\./), dumpVersion: z.string().regex(/17\./), nodeVersion: z.string(), ageVersion: z.string(), createdAt: z.iso.datetime(), migrations: z.record(z.string(), z.string().regex(/^[a-f0-9]{64}$/)), sourceProject: z.string().optional(), sourceKind: z.enum(['isolated-fixture','hosted-owner-operated']).optional(), recipientFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(), sourceSchemaFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(), migrationVersions: z.array(z.string().regex(/^\d{14}$/)).optional() }).strict();
 const discard = () => new Writable({ write(_chunk, _encoding, callback) { callback(); } });
 export function ageVersion() {
   const p = spawnSync('age', ['--version'], { encoding: 'utf8', timeout: 10_000 });
@@ -34,8 +34,8 @@ export async function generateIdentity(file, repository) {
   if (recipient.error || recipient.status !== 0) throw new Error('Age recipient derivation failed.');
   return recipient.stdout.trim();
 }
-export function processStream(command, args, input) {
-  const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'ignore'], timeout: 120_000 });
+export function processStream(command, args, input, { env = process.env } = {}) {
+  const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'ignore'], timeout: 120_000, env });
   const done = new Promise((resolveDone, reject) => {
     child.on('error', () => reject(new Error('Backup subprocess failed; diagnostics withheld.')));
     child.on('close', code => code === 0 ? resolveDone() : reject(new Error('Backup subprocess failed; diagnostics withheld.')));

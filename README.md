@@ -58,6 +58,12 @@ official `age` and `age-keygen` tools (verified version 1.3.2). Run
 `node scripts/backup/rehearse.mjs`; no hosted connection arguments are accepted.
 It does not prove hosted backup or full Supabase disaster recovery. No new credentials
 or environment variables are required; disposable identities are generated privately.
+The pending [Phase 7S-B hosted-backup readiness](docs/PHASE_7S_B_HOSTED_BACKUP_READINESS.md)
+adds an export-only, separately confirmed operator workflow and a
+[private operator runbook](docs/PHASE_7S_B_OPERATOR_RUNBOOK.md). It has only been tested
+against isolated fictional TLS sources; do not run its hosted export until separately
+authorized. It uses external private passfiles, an official CA, PG17 client tools and
+an owner-supplied age public recipient, not application environment variables.
 No additional environment variables or credentials are required. All configured
 application environments use the read-only repository; changing an environment
 label cannot enable hosted writes. Mutation-enabled tests accept only loopback

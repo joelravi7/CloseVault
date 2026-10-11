@@ -8,8 +8,9 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { docker, image, verifyContainer, sql, dumpSource, restoreFresh } from './local-database.mjs';
 import { encryptBackup, decryptBackup, generateIdentity, ageVersion, sha256 } from './envelope.mjs';
+import { rehearseHosted } from './hosted-rehearsal.mjs';
 
-assert.equal(process.argv.length, 2, 'This local rehearsal accepts no connection arguments.');
+assert.ok(process.argv.length === 2 || (process.argv.length === 3 && process.argv[2] === '--export-interface-test'), 'Local rehearsal accepts only its isolated export-test flag, never connection URLs.');
 const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
 process.chdir(root);
 const run = `closevault-backup-${randomBytes(6).toString('hex')}`;
@@ -144,6 +145,7 @@ try {
   assert.equal(ownerCommand(target, 'select public.cv_owner_status()'), 't');
   pass('new authenticated RPC and owner-status function work after restore');
   await assert.rejects(restoreFresh(target, run, source, restoreInput)); pass('populated restore target refused without destructive fallback');
+  if(process.argv[2]==='--export-interface-test')await rehearseHosted({source,target,run,directory,root,password:backupPassword,provision,snapshot,pass,report,ownerCommand,createQuery,editQuery,first,edited});
   report.verification = 'local-fictional-restore-verified'; report.artifacts.backup.status = report.verification;
 } catch (error) { report.verification = 'failed'; if (error instanceof Error && error.message.startsWith('Owned Docker operation failed')) console.error(error.message); console.error(`STOP: local rehearsal failed (${report.stage ?? 'preparation'}); raw SQL, dump and credential diagnostics withheld.`); process.exitCode = 1; }
 finally {

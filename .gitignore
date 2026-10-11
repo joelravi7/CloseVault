@@ -41,9 +41,13 @@ yarn-error.*
 *.cvbackup
 *.age
 disposable-identity*.txt
+*age-identity*.txt
 *.dump
 *.backup
 *.partial
+*.pgpass
+*.key
+*backup-config.json
 
 # local env files
 .env*.local
