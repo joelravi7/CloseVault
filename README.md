@@ -52,6 +52,12 @@ The pending [Phase 7A-R save recovery](docs/PHASE_7A_R_SAVE_RECOVERY.md) adds
 session-scoped/secure operation metadata and owner-authorized receipt reconciliation.
 It does not enable hosted writes or persist customer request payloads. Exact retries
 require the original in-memory form; after restart, an absent receipt stays uncertain.
+The local-only [Phase 7S-A backup rehearsal](docs/PHASE_7S_A_BACKUP_RESTORE.md)
+tests age-encrypted streaming PostgreSQL recovery with fictional data. Requires the
+official `age` and `age-keygen` tools (verified version 1.3.2). Run
+`node scripts/backup/rehearse.mjs`; no hosted connection arguments are accepted.
+It does not prove hosted backup or full Supabase disaster recovery. No new credentials
+or environment variables are required; disposable identities are generated privately.
 No additional environment variables or credentials are required. All configured
 application environments use the read-only repository; changing an environment
 label cannot enable hosted writes. Mutation-enabled tests accept only loopback

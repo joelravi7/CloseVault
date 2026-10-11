@@ -37,6 +37,14 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# Database recovery artifacts are generated outside this repository.
+*.cvbackup
+*.age
+disposable-identity*.txt
+*.dump
+*.backup
+*.partial
+
 # local env files
 .env*.local
 
