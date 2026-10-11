@@ -1,5 +1,6 @@
 // Executes only inside the disposable internal Docker network.
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import { readFileSync } from 'node:fs';
 import { createHmac, randomUUID } from 'node:crypto';
 import { createRequire, Module } from 'node:module';
@@ -13,6 +14,7 @@ Module._load = function (name, ...args) {
   if (name === 'expo-secure-store') return {};
   if (name === '@/domain/authentication') return require('./authentication.js');
   if (name === '@/domain/lead-persistence') return require('./lead-persistence.js');
+  if (name === '@/domain/daily-follow-ups') return require('./daily-follow-ups.js');
   if (name === '@/domain/lead-save-recovery') return require('./lead-save-recovery-domain.js');
   if (name === './supabase/lead-repository') return require('./lead-repository.js');
   return originalLoad.call(this, name, ...args);

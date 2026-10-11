@@ -58,6 +58,12 @@ browser acceptance is **not complete**: the existing isolated Auth/PostgREST run
 has zero published ports and is not reachable from the desktop browser. Do not weaken
 that isolation or use the real owner credentials to fill this gap. Rendered screen tests
 and actual isolated HTTP controller tests are separate evidence, not browser E2E proof.
+During the live development run, refresh also exposed repeated Auth-client warnings
+and an initializing screen; its cause was not established. A clean production web export
+with the same fictional configuration was then served on loopback: direct private-route
+navigation and refresh both settled at Sign in, with no warning/error browser entries
+observed. Do not infer that this proves authenticated session restoration or dismiss the
+development warning as diagnosed. Keep it on the browser-acceptance checklist.
 
 Manual acceptance on a separately approved isolated browser setup:
 
@@ -107,4 +113,54 @@ can continue because these are explicit release gates, not an authorization bypa
 
 ## Sprint B and final measured validation
 
-Updated after the daily-follow-up vertical slice and final regression checkpoint.
+- `/crm/follow-ups` supplies Today, Overdue and Upcoming queues. Colombo midnight
+  defines day boundaries; an active task later today remains in Today. Overdue means
+  before today's start, not every task earlier than the current minute. UTC bounds are
+  applied before pagination, with due_at/id ascending and exact-count 25-row pages.
+- The existing lead repository now queries owner-scoped tasks joined to owner-scoped
+  leads. Terminal tasks and lost/archived leads are excluded. The screen provides contact,
+  stage, scheduled time, lead navigation, loading/empty/error/retry/refresh and pagination.
+  It does not load the entire CRM or synthesize demo data in hosted mode.
+- Lead list/detail link to the queue; actionable profile tasks link to cancellation.
+  Only cv_cancel_follow_up is used for mutations in isolated tests. The SQL, stage
+  transitions, Lost closure and site visits remain unchanged/unavailable.
+- Cancellation requires reason, meaningful replacement action, valid Colombo/offset date,
+  task version and explicit confirmation. The atomic RPC retains history, creates one
+  replacement, updates primary planning and stores reminder intents. UI and repository
+  reject hosted cancellation independently, as they do Create/Edit. No notification API
+  is called or delivery inferred by this interface.
+- The existing recovery coordinator now supports cancellation without a parallel storage
+  system. It stores only IDs/scope/type/digest, never cancellation reason, action/date,
+  customer payload or credentials. Detached immutable requests are journaled/verified
+  before transmission. Identical retained retries reuse UUID/request; unrelated new
+  commands are blocked while unresolved. Receipt reconciliation checks type/owner/digest,
+  original/replacement IDs and preserved task-to-lead/replacement relationships before
+  refresh and journal cleanup. Late invalidated reads cannot publish subscriber updates.
+- Recovery remains visible during cancellation loading/errors and on the daily queue.
+  After navigation/restart, reconciliation is offered, not automatic replay or a guessed
+  new command. Original creation/edit recovery semantics and tests remain intact.
+
+Final measured results:
+
+| Validation | Result |
+| --- | --- |
+| Jest | 346/346, 25 suites (303 baseline + 5 dependency + 38 daily-work tests) |
+| Real isolated HTTP/JWT | 87/87 (77 baseline + 3 security + 7 daily-work scenarios) |
+| Foundation / owner-status pgTAP | 1,431 / 18 passed in the final integration run |
+| America/Los_Angeles regressions | 136/136 across six suites |
+| TypeScript / ESLint / whitespace | Passed, zero lint warnings in the final run |
+| Production web export | Passed, 34 routes, dotenv disabled and fictional configuration |
+| Age encryption/export unit tests | 33/33 rerun; prior unchanged 17-check restore rehearsal retained |
+| Credential / sensitive-path review | No findings; no environment/key/archive artifacts staged |
+
+All database mutations used the owned disposable internal Docker runner, with zero
+published ports and only tmpfs mounts. It confirmed cleanup. Pre-existing unrelated
+local containers were not changed. Browser smoke servers were loopback-only, used no
+real credentials and were stopped. No hosted database access, SQL changes, Auth changes,
+customer entry, deployment or push occurred.
+
+Implemented vertical slices are locally usable/tested; hosted reads remain owner-authorized
+and hosted mutations remain prohibited. Follow-up completion/rescheduling/addition lack
+approved executable server contracts and are not exposed by this new interface. The
+separate fictional demo workflows remain unchanged. Full first-production release still
+requires the gates above, including complete multi-stop visits and Lost closure.

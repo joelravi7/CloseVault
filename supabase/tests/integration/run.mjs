@@ -69,7 +69,7 @@ try {
     sources[target] = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   }
   sources['http.test.mjs'] = readFileSync('supabase/tests/integration/http.test.mjs', 'utf8');
-  for (const [file, target] of Object.entries({ 'src/domain/lead-persistence.ts': 'lead-persistence.js', 'src/domain/business-rules.ts': 'business-rules.js', 'src/domain/follow-up-cancellation.ts': 'follow-up-cancellation.js', 'src/data/supabase/lead-repository.ts': 'lead-repository.js' })) {
+  for (const [file, target] of Object.entries({ 'src/domain/lead-persistence.ts': 'lead-persistence.js', 'src/domain/daily-follow-ups.ts': 'daily-follow-ups.js', 'src/domain/business-rules.ts': 'business-rules.js', 'src/domain/follow-up-cancellation.ts': 'follow-up-cancellation.js', 'src/data/supabase/lead-repository.ts': 'lead-repository.js' })) {
     sources[target] = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   }
   sources['leads.test.mjs'] = readFileSync('supabase/tests/integration/leads.test.mjs', 'utf8');

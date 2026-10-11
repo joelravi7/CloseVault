@@ -1,0 +1,32 @@
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../database.types';
+import { createHostedLeadRepository, createIsolatedLeadRepository } from '../lead-repository';
+const owner = '00000000-0000-4000-8000-000000000001', leadId = '00000000-0000-4000-8000-000000000002', taskId = '00000000-0000-4000-8000-000000000004', replacementId = '00000000-0000-4000-8000-000000000005';
+const lead = { id: leadId, owner_id: owner, full_name: 'Fictional Buyer', phone: null, email: null, source: null, stage: 'new', primary_follow_up_id: taskId, closure_reason: null, closed_at: null, archived_at: null, version: 1, created_at: '2026-10-11T00:00:00Z', updated_at: '2026-10-11T00:00:00Z' };
+const task = { id: taskId, owner_id: owner, lead_id: leadId, title: 'Fictional task', due_at: '2026-10-12T04:00:00Z', status: 'upcoming', outcome: null, terminal_at: null, cancellation_cause: null, replaces_follow_up_id: null, version: 1, created_at: '2026-10-11T00:00:00Z', updated_at: '2026-10-11T00:00:00Z' };
+const command = { commandId: '00000000-0000-4000-8000-000000000003', followUpId: taskId, expectedVersion: 1, reason: ' Fictional reason ', replacement: { action: ' Review requirements ', dueAt: '2026-10-12T09:30' } };
+function setup(handler: (url: URL, init?: RequestInit) => Promise<Response> | Response = () => reply([{ ...task, lead }])) {
+  let active = true;
+  const fetcher = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => handler(new URL(String(input)),init));
+  const authorize = jest.fn(async () => owner);
+  const options = { authorize, active: () => active };
+  const client = createClient<Database>('https://fictional.invalid', 'sb_publishable_fictional', { accessToken: async () => 'fictional', global: { fetch: fetcher } });
+  return { hosted: createHostedLeadRepository(client, authorize, options.active), isolated: createIsolatedLeadRepository({ ...options, url: 'http://localhost:3000', publishableKey: 'fictional', accessToken: async () => 'fictional', fetch: fetcher }), fetcher, deny: () => { active = false; } };
+}
+function reply(value: unknown, total = Array.isArray(value) ? value.length : 1) { return new Response(JSON.stringify(value), { headers: { 'content-type':'application/json', 'content-range':`0-${total-1}/${total}` } }); }
+test.each(['today','overdue','upcoming'] as const)('database owner-scoped %s filters precede deterministic 25-row pagination', async bucket => {
+  const s=setup(); await s.hosted.followUps!({bucket,page:0,at:'2026-10-12T00:00:00.000Z'});
+  const u=new URL(String(s.fetcher.mock.calls[0][0]));
+  expect(u.searchParams.get('owner_id')).toBe(`eq.${owner}`); expect(u.searchParams.get('lead.owner_id')).toBe(`eq.${owner}`);
+  expect(u.searchParams.get('lead.stage')).toBe('neq.lost'); expect(u.searchParams.get('lead.archived_at')).toBe('is.null');
+  expect(u.searchParams.get('status')).toBe('in.(upcoming,due,overdue,waiting_for_client)'); expect(u.searchParams.get('order')).toBe('due_at.asc,id.asc'); expect(u.searchParams.get('limit')).toBe('25');
+  expect(u.searchParams.getAll('due_at')).toEqual(bucket==='today'?['gte.2026-10-11T18:30:00.000Z','lt.2026-10-12T18:30:00.000Z']:bucket==='overdue'?['lt.2026-10-11T18:30:00.000Z']:['gte.2026-10-12T18:30:00.000Z']);
+});
+test.each([{ ...task, status:'cancelled' }, { ...task, owner_id:replacementId }, { ...task, lead_id:replacementId }])('unsafe daily rows fail closed', async value => { const s=setup(()=>reply([{...value,lead}])); await expect(s.hosted.followUps!({bucket:'today',page:0,at:'2026-10-12T00:00:00.000Z'})).rejects.toMatchObject({code:'unauthorized'}); });
+test('incomplete follow-up page cannot hide records', async()=>{const s=setup(()=>reply([{...task,lead}],26));await expect(s.hosted.followUps!({bucket:'today',page:0,at:'2026-10-12T00:00:00.000Z'})).rejects.toMatchObject({code:'unavailable'});});
+test('late daily response after session invalidation is rejected',async()=>{let release!:()=>void;const wait=new Promise<void>(r=>{release=r;});const s=setup(async()=>{await wait;return reply([{...task,lead}]);});const promise=s.hosted.followUps!({bucket:'today',page:0,at:'2026-10-12T00:00:00.000Z'});await Promise.resolve();await Promise.resolve();s.deny();release();await expect(promise).rejects.toMatchObject({code:'unauthorized'});});
+test('hosted cancellation is blocked before transport',async()=>{const s=setup();await expect(s.hosted.cancelFollowUp!(command,leadId)).rejects.toMatchObject({code:'read_only'});expect(s.fetcher).not.toHaveBeenCalled();});
+test('invalid cancellation has no reads or writes',async()=>{const s=setup();await expect(s.isolated.cancelFollowUp!({...command,reason:' '},leadId)).rejects.toMatchObject({code:'invalid_command'});expect(s.fetcher).not.toHaveBeenCalled();});
+test('atomic cancellation RPC uses UTC, version and stable UUID with no direct writes',async()=>{const s=setup(url=>reply(url.pathname.includes('/rpc/')?{original_id:taskId,replacement_id:replacementId,lead_version:2}:{id:taskId,owner_id:owner,lead_id:leadId}));for(let n=0;n<2;n++)await expect(s.isolated.cancelFollowUp!(command,leadId)).resolves.toEqual({leadId,leadVersion:2,followUpId:replacementId});const calls=s.fetcher.mock.calls.filter(c=>String(c[0]).includes('/rpc/'));expect(calls).toHaveLength(2);expect(JSON.parse(String(calls[0][1]?.body))).toEqual({p_command_id:command.commandId,p_follow_up_id:taskId,p_expected_version:1,p_reason:'Fictional reason',p_next_action:'Review requirements',p_due_at:'2026-10-12T04:00:00.000Z'});expect(calls[0][1]?.body).toEqual(calls[1][1]?.body);});
+test('wrong lead association prevents cancellation RPC',async()=>{const s=setup(()=>reply({id:taskId,owner_id:owner,lead_id:replacementId}));await expect(s.isolated.cancelFollowUp!(command,leadId)).rejects.toMatchObject({code:'not_found'});expect(s.fetcher.mock.calls.every(c=>!String(c[0]).includes('/rpc/'))).toBe(true);});
+test('session lost during association read prevents cancellation transmission',async()=>{let release!:()=>void;let reading=false;const wait=new Promise<void>(r=>{release=r;});const s=setup(async()=>{reading=true;await wait;return reply({id:taskId,owner_id:owner,lead_id:leadId});});const p=s.isolated.cancelFollowUp!(command,leadId);while(!reading)await Promise.resolve();s.deny();release();await expect(p).rejects.toMatchObject({code:'unauthorized'});expect(s.fetcher.mock.calls.every(c=>!String(c[0]).includes('/rpc/'))).toBe(true);});

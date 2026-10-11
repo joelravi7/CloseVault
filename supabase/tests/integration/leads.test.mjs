@@ -1,6 +1,6 @@
 // Fictional records and real HTTP only inside the existing isolated Docker runner.
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { createIsolatedLeadRepository, createHostedLeadRepository, LeadFailure } = require('./lead-repository.js');
@@ -58,4 +58,39 @@ export async function runLeadTests({ test, sdk, query, owner, other, password, a
   await test('Phase7 real nonowner authorization fails before repository read or write', async () => { const otherClient = sdk(); assert.equal((await otherClient.auth.signInWithPassword({ email: 'other@example.invalid', password })).error, null); const nonowner = createIsolatedLeadRepository({ ...options, accessToken: async () => (await otherClient.auth.getSession()).data.session.access_token, authorize: async () => { const user = await otherClient.auth.getUser(); assert.equal(user.data.user.id, other); const status = await otherClient.rpc('cv_owner_status'); if (status.data !== true) throw new LeadFailure('unauthorized', 'Owner denied.'); return other; } }); const before = await rows(); await assert.rejects(nonowner.list({ page: 0, search: '' }), e => e.code === 'unauthorized'); await assert.rejects(nonowner.createLead(make(), true), e => e.code === 'unauthorized'); assert.deepEqual(await rows(), before); });
   await test('Phase7 actual nonowner JWT denied by RLS even if client callback lies', async () => { const otherClient = sdk(); await otherClient.auth.signInWithPassword({ email: 'other@example.invalid', password }); const forbidden = createIsolatedLeadRepository({ ...options, accessToken: async () => (await otherClient.auth.getSession()).data.session.access_token, authorize: async () => other }); assert.deepEqual(await forbidden.list({ page: 0, search: '' }), { leads: [], total: 0 }); await assert.rejects(forbidden.createLead(make(), true), e => e.code === 'unauthorized'); });
   await test('Phase7 lost access blocks commands without changing persisted data', async () => { active = false; const before = await rows(); await assert.rejects(repository.list({ page: 0, search: '' }), e => e.code === 'unauthorized'); await assert.rejects(repository.createLead(make(), true), e => e.code === 'unauthorized'); assert.deepEqual(await rows(), before); active = true; });
+  const at = '2026-10-12T00:00:00.000Z';
+  await test('Daily actual owner-scoped today queue paginates full joined dataset', async () => {
+    const first = await repository.followUps({ page: 0, bucket: 'today', at });
+    const second = await repository.followUps({ page: 1, bucket: 'today', at });
+    assert.equal(first.items.length, 25); assert.ok(second.items.length > 0);
+    const all = [...first.items, ...second.items]; assert.equal(new Set(all.map(v=>v.followUp.id)).size, first.total);
+    for (const v of all) { assert.equal(v.lead.owner_id, owner); assert.equal(v.followUp.owner_id, owner); assert.equal(v.followUp.lead_id,v.lead.id); assert.ok(new Date(v.followUp.due_at)>=new Date('2026-10-11T18:30:00Z')); assert.ok(new Date(v.followUp.due_at)<new Date('2026-10-12T18:30:00Z')); }
+  });
+  await test('Daily actual overdue and upcoming buckets use Colombo UTC bounds', async () => {
+    const overdue=await repository.followUps({ page:0,bucket:'overdue',at }); const upcoming=await repository.followUps({page:0,bucket:'upcoming',at});
+    assert.ok(overdue.items.every(v=>new Date(v.followUp.due_at)<new Date('2026-10-11T18:30:00Z')));
+    assert.ok(upcoming.items.length>0);assert.ok(upcoming.items.every(v=>new Date(v.followUp.due_at)>=new Date('2026-10-12T18:30:00Z')));
+    assert.ok(upcoming.items.every(v=>!['cancelled','completed','rescheduled'].includes(v.followUp.status)));
+  });
+  const fresh=await repository.createLead(make(1000),true);
+  const cancellation={commandId:randomUUID(),followUpId:fresh.followUpId,expectedVersion:1,reason:' Fictional revised plan ',replacement:{action:' Review fictional requirements ',dueAt:'2026-10-13T09:30'}};
+  let cancelled;
+  await test('Daily actual adapter cancellation commits exactly one replacement and replays safely',async()=>{
+    const result=await Promise.all([repository.cancelFollowUp(cancellation,fresh.leadId),repository.cancelFollowUp(cancellation,fresh.leadId)]);assert.deepEqual(result[0],result[1]);cancelled=result[0];
+    const detail=await repository.detail(fresh.leadId);assert.equal(detail.followUps.length,2);assert.equal(detail.lead.primary_follow_up_id,cancelled.followUpId);assert.equal(detail.followUps.find(v=>v.id===fresh.followUpId).status,'cancelled');
+    assert.equal(detail.followUps.find(v=>v.id===fresh.followUpId).outcome,'Fictional revised plan');assert.ok(detail.activities.some(v=>v.kind==='follow_up_cancelled'));
+  });
+  await test('Daily hosted cancellation remains blocked',async()=>{await assert.rejects(hosted.cancelFollowUp(cancellation,fresh.leadId),e=>e.code==='read_only');});
+  await test('Daily terminal cancellation fails without new records',async()=>{const before=await query('select id,status,version from public.follow_ups order by id');await assert.rejects(repository.cancelFollowUp({...cancellation,commandId:randomUUID(),expectedVersion:2},fresh.leadId),e=>e.code==='invalid_command');assert.deepEqual(await query('select id,status,version from public.follow_ups order by id'),before);});
+  await test('Daily lost cancellation response reconciles real receipt after restart without replay',async()=>{
+    const {createLeadSaveRecovery}=require('./lead-save-recovery.js');let lost=false;
+    const interrupted=createIsolatedLeadRepository({...options,fetch:async(input,init)=>{const r=await fetch(input,init);if(!lost&&new URL(input).pathname==='/rpc/cv_cancel_follow_up'&&r.ok){lost=true;throw new Error('Fictional lost cancellation response');}return r;}});
+    const values=new Map();const storage={getItem:async k=>values.get(k)??null,setItem:async(k,v)=>{values.set(k,v);},removeItem:async k=>{values.delete(k);},assertHealthy(){}};
+    const recoveryOptions={storage,environment:'isolated:release',owner,repository:interrupted,active:()=>active,digest:async v=>createHash('sha256').update(v).digest('hex'),refresh:async()=>{}};
+    const op={kind:'cancel',confirmed:true,leadId:fresh.leadId,command:{...cancellation,commandId:randomUUID(),followUpId:cancelled.followUpId,replacement:{action:'Fictional durable replacement',dueAt:'2026-10-14T09:30'}}};
+    await assert.rejects(createLeadSaveRecovery(recoveryOptions).save(op),e=>e.code==='uncertain_outcome');assert.ok([...values.values()].every(v=>!v.includes('Fictional')&&!v.includes('reason')&&!v.includes('dueAt')));
+    const before=await query('select id,status,version from public.follow_ups order by id');const restored=createLeadSaveRecovery(recoveryOptions);await restored.load();assert.equal(restored.state().pending.kind,'cancel_follow_up');
+    const result=await restored.reconcile();assert.equal(result.leadId,fresh.leadId);assert.equal(values.size,0);assert.deepEqual(await query('select id,status,version from public.follow_ups order by id'),before);
+  });
+  await test('Daily queue reflects replacement and excludes original cancelled history',async()=>{const today=await repository.followUps({page:0,bucket:'today',at});assert.ok(today.items.every(v=>v.followUp.id!==fresh.followUpId));const upcoming=await repository.followUps({page:0,bucket:'upcoming',at});assert.ok(upcoming.items.some(v=>v.lead.id===fresh.leadId));});
 }

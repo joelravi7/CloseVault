@@ -1,4 +1,4 @@
-import { pendingLeadKey, pendingLeadSchema, canonicalJson, receiptRequest, snapshotSaveOperation, recoveredLeadSchema, type PendingLead, type SaveOperation, type RecoveredLead } from '@/domain/lead-save-recovery';
+import { pendingLeadKey, pendingLeadSchema, canonicalJson, receiptRequest, snapshotSaveOperation, recoveredLeadSchema, type PendingLead, type CommandSaveOperation as SaveOperation, type RecoveredLead } from '@/domain/lead-save-recovery';
 import type { SessionStorageAdapter } from './supabase/auth-storage';
 import type { LeadRepository } from './contracts/lead-repository';
 import { LeadFailure } from './supabase/lead-repository';
@@ -61,7 +61,7 @@ export function createLeadSaveRecovery(o: RecoveryOptions): LeadSaveRecovery {
         // Validate/hash BEFORE journal write. Invalid form commands never enter the journal.
         operation = snapshotSaveOperation(operation);
         const request = receiptRequest(operation); const digest = await o.digest(canonicalJson(request)); guard();
-        const candidate = pendingLeadSchema.parse({ schema: 1, owner: o.owner, environment: o.environment, commandId: operation.command.commandId, kind: operation.kind === 'create' ? 'create_lead' : 'edit_lead', digest, ...(operation.kind === 'edit' ? { leadId: operation.command.leadId } : {}) });
+        const candidate = pendingLeadSchema.parse({ schema: 1, owner: o.owner, environment: o.environment, commandId: operation.command.commandId, kind: operation.kind === 'create' ? 'create_lead' : operation.kind === 'edit' ? 'edit_lead' : 'cancel_follow_up', digest, ...(operation.kind === 'edit' ? { leadId: operation.command.leadId } : operation.kind === 'cancel' ? { leadId: operation.leadId, followUpId: operation.command.followUpId } : {}) });
         entry = await journalLock(async () => {
           const stored = await read(); retained = stored !== null;
           if (!stored && state.pending) blocked('Local recovery metadata was lost. Do not submit again.');
@@ -76,9 +76,9 @@ export function createLeadSaveRecovery(o: RecoveryOptions): LeadSaveRecovery {
           return candidate;
         });
         publish({ status: 'saving', pending: entry, message: 'Saving…' }); guard(); transmitted = true;
-        const result = operation.kind === 'create' ? await o.repository.createLead(operation.command, operation.confirmed) : await o.repository.editLead(operation.command, operation.confirmed);
+        const result = operation.kind === 'create' ? await o.repository.createLead(operation.command, operation.confirmed) : operation.kind === 'edit' ? await o.repository.editLead(operation.command, operation.confirmed) : o.repository.cancelFollowUp ? await o.repository.cancelFollowUp(operation.command, operation.leadId) : blocked('Cancellation is unavailable.');
         recoveredLeadSchema.parse({ lead_id: result.leadId, lead_version: result.leadVersion, ...('followUpId' in result ? { follow_up_id: result.followUpId } : {}) });
-        if ((operation.kind === 'create' && !('followUpId' in result && result.followUpId)) || (operation.kind === 'edit' && result.leadId !== operation.command.leadId)) blocked('The save result could not be verified.');
+        if ((operation.kind === 'create' && !('followUpId' in result && result.followUpId)) || (operation.kind === 'edit' && result.leadId !== operation.command.leadId) || (operation.kind === 'cancel' && (result.leadId !== operation.leadId || !('followUpId' in result && result.followUpId) || result.followUpId === operation.command.followUpId))) blocked('The save result could not be verified.');
         guard(); await o.refresh(); guard(); await clear(entry); guard();
         publish({ status: 'recovered', result, message: 'Saved successfully.' }); return result;
       } catch (e) {
@@ -106,6 +106,15 @@ export function createLeadSaveRecovery(o: RecoveryOptions): LeadSaveRecovery {
         if (raw === null) { publish({ status: 'uncertain', pending: entry, message: 'No receipt is visible yet. This does not prove the save failed. Keep checking; do not create another submission.' }); return null; }
         const receipt = receiptSchema.parse(raw);
         if (receipt.owner_id !== entry.owner || receipt.command_id !== entry.commandId || receipt.command_type !== entry.kind || await o.digest(canonicalJson(receipt.request)) !== entry.digest) blocked('Server receipt does not match the pending operation.');
+        if (entry.kind === 'cancel_follow_up') {
+          const result = z.object({ original_id: z.uuid(), replacement_id: z.uuid(), lead_version: z.number().int().positive() }).strict().parse(receipt.result);
+          if (result.original_id !== entry.followUpId || result.replacement_id === result.original_id || !entry.leadId) blocked('Server cancellation result does not match the pending operation.');
+          // The original task remains readable; independently verify its lead association.
+          const detail = await o.repository.detail(entry.leadId!); guard();
+          if (detail.lead.owner_id !== entry.owner || !detail.followUps.some(v => v.id === result.original_id && v.lead_id === entry.leadId && v.owner_id === entry.owner && v.status === 'cancelled') || !detail.followUps.some(v => v.id === result.replacement_id && v.lead_id === entry.leadId && v.owner_id === entry.owner && v.replaces_follow_up_id === result.original_id)) blocked('Cancellation receipt association could not be verified.');
+          const value = { leadId: entry.leadId!, leadVersion: result.lead_version, followUpId: result.replacement_id };
+          guard(); await o.refresh(); guard(); await clear(entry); guard(); publish({ status: 'recovered', result: value, message: 'Cancellation and replacement confirmed.' }); return value;
+        }
         const result = recoveredLeadSchema.parse(receipt.result);
         if ((entry.kind === 'create_lead' && !result.follow_up_id) || (entry.kind === 'edit_lead' && (result.lead_id !== entry.leadId || result.follow_up_id !== undefined))) blocked('Server result does not match the pending operation.');
         const value = { leadId: result.lead_id, leadVersion: result.lead_version, ...(entry.kind === 'create_lead' ? { followUpId: result.follow_up_id } : {}) };

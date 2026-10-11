@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { createLeadFormSchema, editLeadFormSchema, normalizeMobile, persistedLeadStages } from '@/domain/lead-persistence';
+import { activeFollowUpStatuses, cancelCommandSchema, colomboDayWindow } from '@/domain/daily-follow-ups';
 import type { CreateLeadCommand, EditLeadCommand } from '../contracts/database-commands';
 import type { LeadRepository, PersistedLead } from '../contracts/lead-repository';
 import type { Database } from './database.types';
@@ -44,6 +45,41 @@ function repository(client: SupabaseClient<Database>, authorize: Authorization, 
   }
   const api: LeadRepository = {
     writable,
+    followUps: (request, signal) => run(async owner => {
+      z.object({ page: z.number().int().nonnegative(), bucket: z.enum(['today', 'overdue', 'upcoming']), at: z.iso.datetime() }).strict().parse(request);
+      const window = colomboDayWindow(request.at);
+      let query = client.from('follow_ups').select('*,lead:leads!follow_ups_lead_id_owner_id_fkey!inner(*)', { count: 'exact' })
+        .eq('owner_id', owner).eq('lead.owner_id', owner).neq('lead.stage', 'lost').is('lead.archived_at', null)
+        .in('status', [...activeFollowUpStatuses]).order('due_at', { ascending: true }).order('id', { ascending: true });
+      if (request.bucket === 'today') query = query.gte('due_at', window.start).lt('due_at', window.end);
+      else if (request.bucket === 'overdue') query = query.lt('due_at', window.start);
+      else query = query.gte('due_at', window.end);
+      query = query.range(request.page * 25, request.page * 25 + 24);
+      if (signal) query = query.abortSignal(signal);
+      const { data, error, count } = await query; if (error) throw error;
+      const entries = z.array(followRow.extend({ lead: row })).parse(data);
+      if (entries.some(v => v.owner_id !== owner || v.lead.owner_id !== owner || v.lead.id !== v.lead_id || v.lead.stage === 'lost' || v.lead.archived_at !== null || !(activeFollowUpStatuses as readonly string[]).includes(v.status) || !Number.isFinite(new Date(v.due_at).getTime()))) throw new LeadFailure('unauthorized', 'Private follow-up scope could not be verified.');
+      if (count === null || entries.length !== Math.min(25, Math.max(0, count - request.page * 25))) throw new LeadFailure('unavailable', 'The requested follow-up page was incomplete. Please retry.');
+      return { items: entries.map(({ lead, ...followUp }) => ({ lead, followUp })), total: count };
+    }),
+    cancelFollowUp: async (command, leadId) => {
+      guard(); if (!writable) throw new LeadFailure('read_only', 'Hosted follow-up writes are not authorized.');
+      const parsed = cancelCommandSchema.safeParse(command);
+      if (!parsed.success || !uuid.safeParse(leadId).success) throw new LeadFailure('invalid_command', 'Complete the cancellation reason and replacement action/date.');
+      const c = parsed.data;
+      return run(async owner => {
+        // Receipt replay is left to the atomic RPC, even when the original is now terminal.
+        const { data: original, error: readError } = await client.from('follow_ups').select('id,owner_id,lead_id').eq('owner_id', owner).eq('id', c.followUpId).maybeSingle();
+        if (readError) throw readError;
+        if (!original || original.owner_id !== owner || original.lead_id !== leadId) throw new LeadFailure('not_found', 'This follow-up is unavailable for this lead.');
+        guard(); // Session may have ended while the association read was in flight.
+        const { data, error } = await client.rpc('cv_cancel_follow_up', { p_command_id: c.commandId, p_follow_up_id: c.followUpId, p_expected_version: c.expectedVersion, p_reason: c.reason, p_next_action: c.replacement.action, p_due_at: c.replacement.dueAt });
+        if (error) throw error;
+        const value = z.object({ original_id: uuid, replacement_id: uuid, lead_version: z.number().int().positive() }).strict().parse(data);
+        if (value.original_id !== c.followUpId || value.replacement_id === c.followUpId) throw new LeadFailure('uncertain_outcome', 'Cancellation outcome could not be verified. Check the server receipt.');
+        return { leadId, leadVersion: value.lead_version, followUpId: value.replacement_id };
+      }, true);
+    },
     receipt: commandId => run(async owner => {
       uuid.parse(commandId);
       const { data, error } = await client.from('command_receipts').select('command_id,owner_id,command_type,request,result').eq('owner_id', owner).eq('command_id', commandId).maybeSingle();

@@ -66,6 +66,9 @@ authorized. It uses external private passfiles, an official CA, PG17 client tool
 an owner-supplied age public recipient, not application environment variables.
 The active [Release 1 readiness checklist](docs/RELEASE_1_READINESS.md) consolidates
 pilot blockers and owner acceptance. Hosted mutations and customer entry remain disabled.
+The private workspace now links to `/crm/follow-ups`: owner-scoped Today, Overdue and
+Upcoming queues with 25-task pages and lead navigation. Atomic cancel-and-replace uses
+the existing command recovery journal in isolated tests; hosted cancellation remains disabled.
 No additional environment variables or credentials are required. All configured
 application environments use the read-only repository; changing an environment
 label cannot enable hosted writes. Mutation-enabled tests accept only loopback
