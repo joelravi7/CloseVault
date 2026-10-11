@@ -33,7 +33,7 @@ function jwt(claims) {
 const epoch = () => Math.floor(Date.now() / 1000);
 const anon = jwt({ role: 'anon', iss: 'supabase', iat: epoch(), exp: epoch() + 3600 });
 const service = jwt({ role: 'service_role', iss: 'supabase', iat: epoch(), exp: epoch() + 3600 });
-const errorIdentifiers = new Set(['invalid_credentials', 'signup_disabled', 'refresh_token_not_found', '42501', '22023', '22007', '40001', 'P0001', 'PGRST301', 'PGRST303', 'PGRST205']);
+const errorIdentifiers = new Set(['invalid_credentials', 'signup_disabled', 'refresh_token_not_found', '42501', '22023', '22007', '40001', 'P0001', 'PGRST301', 'PGRST303', 'PGRST205', 'PGRST202']);
 function assertError(response, status, identifier, domainIdentifier) {
   assert.equal(response.ok, false);
   assert.equal(response.status, status);
@@ -52,7 +52,7 @@ async function request(kind, path, token, body, method = body === undefined ? 'G
   const raw = await response.text(); let data; try { data = JSON.parse(raw); } catch { data = null; }
   if (!response.ok) {
     const code = data?.error_code ?? data?.code;
-    console.log(`DENIAL HTTP ${response.status} identifier ${errorIdentifiers.has(code) ? code : 'unrecognized'}`);
+    console.log(`DENIAL HTTP ${response.status} identifier ${errorIdentifiers.has(code) || /^(?:PGRST\d{3}|\d{5})$/.test(code ?? '') ? code : 'unrecognized'}`);
   }
   return { status: response.status, ok: response.ok, data };
 }
@@ -126,6 +126,31 @@ try {
   });
   await test('nonowner cannot provision approved owner registry via HTTP', async () => { const before = await query('select * from closevault_private.approved_owner'); assertError(await request('rest', '/approved_owner', otherSession.access_token, { user_id: other }), 404, 'PGRST205'); assert.deepEqual(await query('select * from closevault_private.approved_owner'), before); });
   for (const method of ['POST', 'PATCH', 'DELETE']) await test(`direct ${method} denied without CRM mutation`, async () => { const before = await snapshot(); const r = await request('rest', `/leads?id=eq.${lead}`, token, method === 'DELETE' ? undefined : { full_name: 'Fictional forbidden write' }, method); assertError(r, 403, '42501'); assert.deepEqual(await snapshot(), before); });
+  await test('release all CRM direct-write and anonymous-read boundaries', async () => {
+    const before = await snapshot();
+    for (const table of ['leads', 'follow_ups', 'activities', 'command_receipts', 'reminder_intents']) {
+      const key = table === 'command_receipts' ? 'command_id' : 'id';
+      assertError(await request('rest', `/${table}?select=${key}`, anon), 401, '42501');
+      for (const method of ['POST', 'PATCH', 'DELETE']) {
+        const body = method === 'DELETE' ? undefined : table === 'leads' ? { full_name: 'Fictional denied' } : table === 'follow_ups' ? { title: 'Fictional denied' } : table === 'activities' ? { summary: 'Fictional denied' } : table === 'command_receipts' ? { command_type: 'forbidden' } : { action: 'cancel' };
+        console.log(`CHECK direct ${method} ${table}`);
+        assertError(await request('rest', `/${table}?${key}=eq.${lead}`, token, body, method), 403, '42501');
+      }
+    }
+    assert.deepEqual(await snapshot(), before);
+  });
+  await test('release unsupported business RPCs are unavailable', async () => {
+    const before = await snapshot();
+    for (const name of ['cv_close_lead_lost', 'cv_complete_follow_up', 'cv_create_site_visit']) assertError(await rpc(name, token), 404, 'PGRST202');
+    assert.deepEqual(await snapshot(), before);
+  });
+  await test('release anonymous and nonowner cancellation denied atomically', async () => {
+    const before = await snapshot();
+    const args = { p_command_id: randomUUID(), p_follow_up_id: followUp, p_expected_version: 1, p_reason: 'Fictional denied', p_next_action: 'Fictional replacement', p_due_at: '2030-01-03T04:30:00Z' };
+    assertError(await rpc('cv_cancel_follow_up', anon, args), 401, '42501');
+    assertError(await rpc('cv_cancel_follow_up', otherSession.access_token, args), 403, '42501', 'CV_UNAUTHORIZED');
+    assert.deepEqual(await snapshot(), before);
+  });
   extra = randomUUID();
   await query('insert into public.follow_ups (id,owner_id,lead_id,title,due_at) values ($1,$2,$3,$4,$5)', [extra, owner, lead, 'Fictional existing task', '2030-01-02T04:30:00Z']);
   const cancellation = { p_command_id: randomUUID(), p_follow_up_id: followUp, p_expected_version: 1, p_reason: 'Fictional change of plan', p_next_action: 'Fictional replacement action', p_due_at: '2030-01-03T04:30:00Z' };

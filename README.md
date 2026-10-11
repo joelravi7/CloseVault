@@ -64,6 +64,8 @@ adds an export-only, separately confirmed operator workflow and a
 against isolated fictional TLS sources; do not run its hosted export until separately
 authorized. It uses external private passfiles, an official CA, PG17 client tools and
 an owner-supplied age public recipient, not application environment variables.
+The active [Release 1 readiness checklist](docs/RELEASE_1_READINESS.md) consolidates
+pilot blockers and owner acceptance. Hosted mutations and customer entry remain disabled.
 No additional environment variables or credentials are required. All configured
 application environments use the read-only repository; changing an environment
 label cannot enable hosted writes. Mutation-enabled tests accept only loopback
