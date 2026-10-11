@@ -30,6 +30,45 @@ age-keygen --help
 
 ## 2. Prepare private directories and your recovery key
 
+### Owner-operated PostgreSQL 17 installation (not executed by Codex)
+
+First restore ample disk headroom. Review the official
+[Homebrew PostgreSQL 17 formula](https://formulae.brew.sh/formula/postgresql@17).
+After separately approving its package/dependency and default-cluster creation effects:
+
+```sh
+HOMEBREW_NO_AUTO_UPDATE=1 brew install postgresql@17
+PG17_BIN="$(brew --prefix postgresql@17)/bin"
+"$PG17_BIN/psql" --version
+"$PG17_BIN/pg_dump" --version
+"$PG17_BIN/pg_restore" --version
+```
+
+All must report PostgreSQL 17.x; record the exact patch version. Set `clientBin` to
+the printed absolute directory, not a generic PATH lookup. Do not start a local database
+service (`brew services start`) for this export. The formula is keg-only and includes
+server binaries/default cluster initialization; it is not a zero-system-change client
+install. No installation was performed in the finalization sprint.
+
+### Connection support boundary
+
+The runner currently supports **only** `db.uxecsfrnmlbugkuhjfeu.supabase.co:5432`,
+database `postgres`, an exact reviewed login matching its private one-line passfile,
+official trusted CA and `sslmode=verify-full`; it independently checks PG17, complete
+read access, RLS and expected migration versions. Native read-only session settings
+are mandatory. Locally configured IPv6 addresses/default routes were observed, but no
+hosted reachability probe was made.
+
+[Supabase's documented session-pooler option](https://supabase.com/docs/guides/database/connecting-to-postgres)
+uses IPv4-capable shared pooler port 5432 and a project-qualified username, for example
+`postgres.uxecsfrnmlbugkuhjfeu` for the postgres login. Obtain the **exact** endpoint and
+role-routing support from this project's dashboard; do not derive them from its region.
+Session-pooler exports are **not supported or live-verified by this runner**. Supporting
+one requires separately reviewed endpoint pinning, exact project-qualified role/passfile,
+trusted TLS hostname verification and complete read-only dump tests. No automatic fallback,
+wildcard host, IP override, transaction pooler (6543) or reduced TLS is allowed. Prefer
+the direct connection for pg_dump as recommended by Supabase.
+
 Proposed paths below are not created by Codex. Choose approved independent/off-site
 storage and key custody before relying on them for disaster recovery.
 

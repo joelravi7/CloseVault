@@ -26,3 +26,14 @@ test('application repository verifies owner through existing gateway and is alwa
 test('failed owner verification denies data reads', async () => { verify.mockResolvedValue(false); const hook = await renderHook(useLeadRepository, { wrapper }); await waitFor(() => expect(hook.result.current).not.toBeNull()); await expect(hook.result.current!.list({ page: 0, search: '' })).rejects.toMatchObject({ code: 'unauthorized' }); expect(transport).not.toHaveBeenCalled(); await hook.unmount(); });
 test('terminal access loss invalidates captured repository even after same-owner reauthorization', async () => { const hook = await renderHook(useLeadRepository, { wrapper }); await waitFor(() => expect(hook.result.current).not.toBeNull()); const old = hook.result.current!; await act(async () => { mockState = { status: 'signed_out' }; for (const listener of mockListeners) listener(mockState); mockState = { status: 'authenticated', userId: owner, expiresAt: 9999999999 }; }); await expect(old.list({ page: 0, search: '' })).rejects.toMatchObject({ code: 'unauthorized' }); expect(transport).not.toHaveBeenCalled(); await hook.unmount(); });
 test('demo mode never configures a hosted CRM repository', async () => { mockDemo = true; jest.mocked(createConfiguredAuth).mockClear(); const hook = await renderHook(useLeadRepository, { wrapper }); expect(hook.result.current).toBeNull(); expect(createConfiguredAuth).not.toHaveBeenCalled(); await hook.unmount(); });
+
+test('repository cleanup does not stop the shared AuthProvider refresh lifecycle', async () => {
+  const configured = createConfiguredAuth();
+  const stop = jest.spyOn(configured.client.auth, 'stopAutoRefresh');
+  const hook = await renderHook(useLeadRepository, { wrapper });
+  await waitFor(() => expect(hook.result.current).not.toBeNull());
+  await hook.unmount();
+  expect(stop).not.toHaveBeenCalled();
+  expect(mockListeners.size).toBe(0);
+  stop.mockRestore();
+});

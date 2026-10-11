@@ -169,9 +169,21 @@ export function createAuthGateway(client: SupabaseClient<Database>, storage: Ses
   };
 }
 
-/** Factory only: no network/client creation at module import or in tests. */
-export function createConfiguredAuth(): { gateway: AuthGateway; client: SupabaseClient<Database>; storage: SessionStorageAdapter; environment: string } {
+type ConfiguredAuth = { gateway: AuthGateway; client: SupabaseClient<Database>; storage: SessionStorageAdapter; environment: string };
+// One SDK client per JS runtime, including Fast Refresh module reevaluation. The
+// provider owns subscriptions/timers, not the SDK session namespace. Never replace
+// a live client when configuration changes: a full reload is required instead.
+const configuredKey = Symbol.for('closevault.configured-auth.v1');
+const configuredRegistry = globalThis as typeof globalThis & { [configuredKey]?: { url: string; key: string; platform: string; auth: ConfiguredAuth } };
+
+/** Lazy initialization: no network/client creation at module import. */
+export function createConfiguredAuth(): ConfiguredAuth {
   const config = parseAuthConfiguration(process.env.EXPO_PUBLIC_SUPABASE_URL, process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+  const existing = configuredRegistry[configuredKey];
+  if (existing) {
+    if (existing.url !== config.url || existing.key !== config.publishableKey || existing.platform !== Platform.OS) throw new AuthFailure('unavailable');
+    return existing.auth;
+  }
   const storage = Platform.OS === 'web' ? createWebSessionStorage(() => window.sessionStorage) : createSecureSessionStorage({
     available: () => SecureStore.isAvailableAsync(),
     get: (key) => SecureStore.getItemAsync(key),
@@ -186,5 +198,7 @@ export function createConfiguredAuth(): { gateway: AuthGateway; client: Supabase
       try { return await fetch(input, { ...init, signal: abort.signal }); } finally { clearTimeout(timer); }
     } },
   });
-  return { gateway: createAuthGateway(client, storage, approvedRecoveryRedirect, configuredRuntime), client, storage, environment: new URL(config.url).origin };
+  const auth = { gateway: createAuthGateway(client, storage, approvedRecoveryRedirect, configuredRuntime), client, storage, environment: new URL(config.url).origin };
+  configuredRegistry[configuredKey] = { url: config.url, key: config.publishableKey, platform: Platform.OS, auth };
+  return auth;
 }

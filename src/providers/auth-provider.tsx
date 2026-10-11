@@ -5,6 +5,7 @@ import { AppState, Platform } from 'react-native';
 
 import { isExplicitDemo } from '@/data/supabase/auth-config';
 import { createConfiguredAuth } from '@/data/supabase/auth-gateway';
+import { claimAuthRefresh } from '@/data/supabase/auth-refresh';
 import { AuthController, type AuthState } from '@/domain/authentication';
 
 interface AuthContextValue { state: AuthState; demo: boolean; controller: AuthController | null }
@@ -33,14 +34,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
       disposers.push(unlisten);
       // Serialize SDK timer operations, including cleanup after an in-flight start.
       // The SDK methods return promises; never leave their rejections unhandled.
-      let refreshQueue = Promise.resolve();
-      const manageRefresh = (enabled: boolean) => {
-        refreshQueue = refreshQueue.then(async () => {
-          if (enabled && alive && active) await client.auth.startAutoRefresh();
-          else await client.auth.stopAutoRefresh();
-        }).catch(() => { if (alive && active) controller.verificationUnavailable(); });
-      };
-      disposers.push(() => manageRefresh(false));
+      const refreshLease = claimAuthRefresh(client, () => { if (alive && active) controller.verificationUnavailable(); });
+      const manageRefresh = (enabled: boolean) => refreshLease.setActive(enabled && alive && active);
+      disposers.push(() => refreshLease.release());
       controller.start();
       const timer = setInterval(() => controller.expire(), 1000);
       disposers.push(() => clearInterval(timer));

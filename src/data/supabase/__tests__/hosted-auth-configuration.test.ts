@@ -27,12 +27,14 @@ const originalKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
 
 beforeEach(() => {
+  Reflect.deleteProperty(globalThis, Symbol.for('closevault.configured-auth.v1'));
   jest.clearAllMocks();
   process.env.EXPO_PUBLIC_SUPABASE_URL = url;
   process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = fictionalKey;
   jest.mocked(createClient<Database>).mockReturnValue({} as SupabaseClient<Database>);
 });
 afterEach(() => {
+  Reflect.deleteProperty(globalThis, Symbol.for('closevault.configured-auth.v1'));
   jest.restoreAllMocks();
   if (originalUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;
   else process.env.EXPO_PUBLIC_SUPABASE_URL = originalUrl;
@@ -40,6 +42,31 @@ afterEach(() => {
   else process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalKey;
   if (windowDescriptor) Object.defineProperty(globalThis, 'window', windowDescriptor);
   else Reflect.deleteProperty(globalThis, 'window');
+});
+
+it('reuses the SDK client, gateway and storage across provider remounts', () => {
+  const first = createConfiguredAuth();
+  expect(createConfiguredAuth()).toBe(first);
+  expect(createConfiguredAuth().storage).toBe(first.storage);
+  expect(createClient).toHaveBeenCalledTimes(1);
+});
+
+it('retains the configured client across module reevaluation (Fast Refresh)', () => {
+  const first = createConfiguredAuth();
+  jest.isolateModules(() => {
+    // Module reevaluation is the regression under test, not an application import.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const reloaded = require('../auth-gateway') as typeof import('../auth-gateway');
+    expect(reloaded.createConfiguredAuth()).toBe(first);
+  });
+  expect(createClient).toHaveBeenCalledTimes(1);
+});
+
+it('fails closed instead of creating a second auth namespace after configuration changes', () => {
+  createConfiguredAuth();
+  process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://different-fictional.supabase.co';
+  expect(() => createConfiguredAuth()).toThrow();
+  expect(createClient).toHaveBeenCalledTimes(1);
 });
 
 it.each([

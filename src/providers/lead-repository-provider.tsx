@@ -29,7 +29,9 @@ export function LeadRepositoryProvider({ children }: PropsWithChildren) {
       }, active);
       const configured = storage && environment ? { ...repo, recovery: createLeadSaveRecovery({ storage, environment, owner, repository: repo, active, digest: value => digestStringAsync(CryptoDigestAlgorithm.SHA256, value), refresh: () => queries ? queries.invalidateQueries({ queryKey: ['private-leads', owner] }) : Promise.reject(new LeadFailure('unavailable', 'Private cache is unavailable.')) }) } : repo;
       void Promise.resolve().then(async () => { if (alive) { setRepository(configured); await configured.recovery?.load(); } }).catch(() => undefined);
-      return () => { alive = false; unsubscribe(); void client.auth.stopAutoRefresh().catch(() => undefined); };
+      // AuthProvider alone owns the shared client's refresh lifecycle. Repository
+      // invalidation must not stop refresh for the still-authorized application.
+      return () => { alive = false; unsubscribe(); };
     } catch { /* render a generic unavailable state, never demo fixtures */ }
     return () => { alive = false; };
   }, [controller, demo, state, ownerId, queries]);

@@ -13,7 +13,7 @@ function sdk() {
   const auth = { getSession: jest.fn().mockResolvedValue({ data: { session }, error: null }), signInWithPassword: jest.fn().mockResolvedValue({ data: { session }, error: null }), onAuthStateChange: jest.fn((listener) => { callback = listener; return { data: { subscription: { unsubscribe: jest.fn() } } }; }) };
   return { client: { auth } as unknown as SupabaseClient<Database>, auth, emit: () => callback('SIGNED_OUT', null) };
 }
-it('configured factory remount shares denial and cleanup ordering despite distinct storage adapters', async () => {
+it('configured factory remount shares one client and preserves denial and cleanup ordering', async () => {
   const oldUrl = process.env.EXPO_PUBLIC_SUPABASE_URL; const oldKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://fixture.invalid'; process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_fictional_test_only';
   try {
@@ -21,9 +21,9 @@ it('configured factory remount shares denial and cleanup ordering despite distin
     let finish!: () => void; old.auth.signInWithPassword.mockImplementationOnce(async () => { await new Promise<void>((resolve) => { finish = resolve; }); return { data: { session }, error: null }; });
     const first = createConfiguredAuth(); const unsubscribe = first.gateway.subscribe(jest.fn()); const login = first.gateway.signIn('fictional@example.invalid', 'fictional password').catch(() => undefined);
     for (let index = 0; index < 20; index++) await Promise.resolve(); old.emit(); unsubscribe();
-    const second = createConfiguredAuth(); expect(await second.gateway.restore()).toBeNull(); expect(next.auth.getSession).not.toHaveBeenCalled();
+    const second = createConfiguredAuth(); expect(second).toBe(first); expect(createClient).toHaveBeenCalledTimes(1); expect(await second.gateway.restore()).toBeNull(); expect(next.auth.getSession).not.toHaveBeenCalled();
     const newLogin = second.gateway.signIn('fictional@example.invalid', 'fictional password'); for (let index = 0; index < 20; index++) await Promise.resolve(); expect(next.auth.signInWithPassword).not.toHaveBeenCalled();
-    finish(); await login; expect(await newLogin).toMatchObject({ userId: session.user.id }); expect(await second.gateway.restore()).toMatchObject({ userId: session.user.id });
+    finish(); await login; expect(await newLogin).toMatchObject({ userId: session.user.id }); expect(old.auth.signInWithPassword).toHaveBeenCalledTimes(2); expect(await second.gateway.restore()).toMatchObject({ userId: session.user.id });
   } finally {
     if (oldUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL; else process.env.EXPO_PUBLIC_SUPABASE_URL = oldUrl;
     if (oldKey === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY; else process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = oldKey;
